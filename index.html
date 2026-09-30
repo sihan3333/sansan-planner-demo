@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f3ea">
+  <meta name="description" content="三三作息簿公开演示：用完全虚构的示例体验日程、基础模板与学习项目。">
+  <title>三三作息簿 · 公开演示</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="privacy-banner"><span class="privacy-dot" aria-hidden="true"></span><strong>公开演示 · 全部为虚构示例数据</strong><span>与作者本人的生活安排无关</span></div>
+  <div class="app-shell">
+    <header class="site-header"><div><p class="eyebrow">A LITTLE SPACE FOR YOUR DAY</p><h1><span aria-hidden="true">📔</span> 三三作息簿</h1><p class="subtitle">把想做的事，慢慢安排进日子里。</p></div><button class="quiet-button" id="reset-demo" type="button">↺ 恢复示例</button></header>
+    <nav class="tabs" aria-label="演示功能" role="tablist"><button type="button" role="tab" id="tab-today" data-tab="today" aria-controls="panel-today" aria-selected="true">今天日程</button><button type="button" role="tab" id="tab-template" data-tab="template" aria-controls="panel-template" aria-selected="false" tabindex="-1">基础模板</button><button type="button" role="tab" id="tab-projects" data-tab="projects" aria-controls="panel-projects" aria-selected="false" tabindex="-1">学习项目</button></nav>
+
+    <main>
+      <section class="tab-panel" id="panel-today" role="tabpanel" aria-labelledby="tab-today">
+        <div class="panel-heading"><div><p class="eyebrow">ONE DAY AT A TIME</p><h2 id="day-heading">今天的小计划</h2><p class="muted" id="day-subtitle"></p></div><div class="date-controls"><button class="icon-button" type="button" id="prev-day" aria-label="前一天">‹</button><label class="sr-only" for="selected-date">选择日期</label><input type="date" id="selected-date"><button class="icon-button" type="button" id="next-day" aria-label="后一天">›</button><button class="quiet-button compact" type="button" id="go-today">今天</button></div></div>
+        <div class="summary-strip"><div><span class="summary-label">今日完成</span><strong id="day-completed">0 / 0</strong></div><div class="summary-progress"><div class="progress-track"><span id="day-progress"></span></div><p id="day-progress-note">一步一步来就很好。</p></div><div class="planned-time"><span class="summary-label">安排时长</span><strong id="day-minutes">0 分钟</strong></div></div>
+        <div class="list-toolbar"><p><span class="leaf" aria-hidden="true">✧</span> 留一点空白，也是一种安排。</p><button class="primary-button" type="button" id="add-activity">＋ 添加活动</button></div>
+        <div id="day-list" class="activity-list"></div>
+        <div class="day-footer"><p>每天保存独立副本，修改模板不会自动改变已有日程。</p><button class="text-button" type="button" id="apply-template">用当前模板覆盖这一天</button></div>
+      </section>
+
+      <section class="tab-panel" id="panel-template" role="tabpanel" aria-labelledby="tab-template" hidden>
+        <div class="panel-heading"><div><p class="eyebrow">A GENTLE STARTING POINT</p><h2>给新的一天，一个起点</h2><p class="muted">模板会用于尚未创建的日期。已有日期保留自己的安排。</p></div><button class="primary-button" type="button" id="add-template">＋ 添加模板活动</button></div>
+        <div class="notice"><span aria-hidden="true">✦</span><p>这些时间和活动均为演示预设。你可以修改模板，再切换到一个新的日期，体验自动生成的日程。</p></div>
+        <div id="template-list" class="activity-list"></div>
+        <div class="day-footer"><p>需要同步到某一天时，请在「今天日程」选择日期后，使用覆盖按钮。</p></div>
+      </section>
+
+      <section class="tab-panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects" hidden>
+        <div class="panel-heading"><div><p class="eyebrow">SMALL STEPS, STEADY PROGRESS</p><h2>让一点点，积累成完成</h2><p class="muted">给学习一个小目标，再把它安排进日程。</p></div><button class="primary-button" type="button" id="add-project">＋ 新建学习项目</button></div>
+        <div id="project-list" class="project-grid"></div>
+        <div class="notice"><span aria-hidden="true">↗</span><p>完成关联活动，会按填写的数量计入项目进度；取消完成、删除活动或覆盖日程会撤回对应记录。预计剩余天数按「剩余量 ÷ 每日目标」向上取整。</p></div>
+      </section>
+    </main>
+    <footer class="site-footer"><p>一份可以放心体验的小样本。</p><span>独立功能演示 · 数据仅保存在当前浏览器 · 无联网请求或跟踪</span><span>这不是原软件的完整版本，请勿填写真实个人信息。</span></footer>
+  </div>
+  <div id="status" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="activity-dialog" aria-labelledby="activity-dialog-title"><form id="activity-form"><div class="dialog-heading"><div><p class="eyebrow">MAKE A LITTLE ROOM</p><h2 id="activity-dialog-title">添加活动</h2></div><button class="icon-button" type="button" data-close="activity-dialog" aria-label="关闭">×</button></div><label>活动名称<input id="activity-title" name="title" type="text" maxlength="60" required placeholder="例如：阅读练习"></label><div class="form-row"><label>开始时间<input id="activity-start" name="start" type="time" step="60" required></label><label>结束时间<input id="activity-end" name="end" type="time" step="60" required></label></div><label>活动类型<select id="activity-category" name="category"><option value="study">课程学习</option><option value="reading">阅读</option><option value="practice">项目练习</option><option value="other">其他</option></select></label><label>关联学习项目<select id="activity-project" name="project"><option value="">不关联项目</option></select></label><label id="activity-amount-label" hidden>本次计划完成量<input id="activity-amount" name="amount" type="number" min="0.1" max="100000" step="0.1" value="1"><small id="activity-unit-help"></small></label><p class="form-hint">支持同一天内的活动；结束时间需晚于开始时间。重叠安排会提示确认。</p><p class="form-error" id="activity-error" role="alert"></p><div class="dialog-actions"><button class="quiet-button" type="button" data-close="activity-dialog">取消</button><button class="primary-button" type="submit">保存活动</button></div></form></dialog>
+
+  <dialog id="project-dialog" aria-labelledby="project-dialog-title"><form id="project-form"><div class="dialog-heading"><div><p class="eyebrow">SOMETHING TO GROW</p><h2 id="project-dialog-title">新建学习项目</h2></div><button class="icon-button" type="button" data-close="project-dialog" aria-label="关闭">×</button></div><label>项目名称<input id="project-name" type="text" maxlength="40" required placeholder="例如：示例阅读计划"></label><div class="form-row"><label>目标总量<input id="project-total" type="number" min="0.1" max="100000" step="0.1" required></label><label>计量单位<input id="project-unit" type="text" maxlength="10" required placeholder="页、节、次"></label></div><div class="form-row"><label>每日目标<input id="project-daily" type="number" min="0.1" max="100000" step="0.1" required></label><label>已完成（手动登记）<input id="project-manual" type="number" min="0" max="100000" step="0.1" value="0" required></label></div><p class="form-hint" id="project-credit-note">日程中的已完成活动会另外计入，无需重复登记。</p><p class="form-error" id="project-error" role="alert"></p><div class="dialog-actions"><button class="quiet-button" type="button" data-close="project-dialog">取消</button><button class="primary-button" type="submit">保存项目</button></div></form></dialog>
+  <script src="app.js" defer></script>
+</body>
+</html>
