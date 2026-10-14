@@ -1,7 +1,43 @@
-# Sansan Planner Demo
+# 三三作息簿 · 公开演示
 
-An independent, interactive portfolio demonstration of daily planning, reusable templates and learning goals. All preset activities, times and progress figures are fictional.
+这是一个独立的交互式作品集演示，展示每日计划、可复用模板和学习项目的进度管理。所有预设活动、时间和进度数字均为虚构。
 
-The demo does not read or connect to the private planner. Its browser storage is isolated under `sansan_public_fictional_demo_v1`. It makes no application network requests, uses no analytics, and has no microphone or cloud-AI integration. This is a focused feature demo rather than the complete original application.
+> 本演示不会读取或连接私人的作息簿数据，它是一个聚焦功能的 Demo，而非完整的原始应用。
 
-Open `index.html` locally or serve this folder using a static server. Changes are stored in the current browser only. The reset button restores the fictional sample dataset.
+## 功能
+
+- **今日计划**：安排当天的活动并标记完成，每个活动可关联学习项目。
+- **活动模板**：编辑一套常用的日程模板，再一键应用到某一天（会覆盖该天的全部活动，需二次确认）。
+- **学习项目**：设置总量和每日小目标，随着完成量累积查看进度；删除项目时，关联的活动会保留。
+
+## 隐私说明
+
+- 不读取、不连接私人数据。
+- 所有数据只保存在当前浏览器的 localStorage 中，键名为 `sansan_public_fictional_demo_v1`，与其他网站和个人版数据相互隔离。
+- 不发起任何应用级网络请求，不使用统计分析（analytics），不接入麦克风或云端 AI。
+
+## 运行方式
+
+**方式一：直接打开**
+
+在本地用浏览器打开 `index.html`。
+
+**方式二：通过静态服务器运行**
+
+在项目目录下启动任意静态服务器，例如：
+
+```bash
+python -m http.server 8000
+```
+
+然后访问 `http://localhost:8000` 即可。
+
+## 保存与重置
+
+- 修改仅保存在当前浏览器中，不会同步到其他浏览器或设备。
+- 点击 **重置** 按钮可恢复为虚构的示例数据。
+- 清除本站的浏览器数据也会移除演示中的所有修改。
+
+## 其他演示
+
+仓库的 [`englishcoach/`](englishcoach/) 目录是 EnglishCoach（English Hour）的公开演示版本，使用合成的学习数据，说明见 [englishcoach/README.md](englishcoach/README.md)。
