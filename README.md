@@ -37,7 +37,3 @@ python -m http.server 8000
 - 修改仅保存在当前浏览器中，不会同步到其他浏览器或设备。
 - 点击 **重置** 按钮可恢复为虚构的示例数据。
 - 清除本站的浏览器数据也会移除演示中的所有修改。
-
-## 其他演示
-
-仓库的 [`englishcoach/`](englishcoach/) 目录是 EnglishCoach（English Hour）的公开演示版本，使用合成的学习数据，说明见 [englishcoach/README.md](englishcoach/README.md)。
