@@ -676,7 +676,50 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     }catch(e){}
     return {};
   }
-  function saveDays(obj){ localStorage.setItem(KEY_DAYS, JSON.stringify(obj)); }
+  function saveDays(obj){ localStorage.setItem(KEY_DAYS, JSON.stringify(obj)); scheduleSnapshot(); }
+
+  // ---------- 使用数据：发给自己的后端（backend/），用来算方案采纳率、完成率 ----------
+  // 只记录日程和操作本身，不记录任何个人身份信息；用户用一个随机的匿名 ID 区分。
+  // 后端只在本地运行时启用；部署到线上后把地址填在这里。发送失败不影响使用。
+  var EVENTS_ENDPOINT = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8001/api/events' : '';
+  var ANON_ID = (function(){
+    try{
+      var v = localStorage.getItem('zuoxibu_anon_id');
+      if(!v){ v = 'u-'+Math.random().toString(36).slice(2,10); localStorage.setItem('zuoxibu_anon_id', v); }
+      return v;
+    }catch(e){ return 'u-anon'; }
+  })();
+  var eventQueue = [], eventTimer = null, snapTimer = null;
+  function track(type, data){
+    if(!EVENTS_ENDPOINT) return;
+    eventQueue.push({type:type, ts:new Date().toISOString(), data:data||{}});
+    clearTimeout(eventTimer);
+    eventTimer = setTimeout(flushEvents, 800);
+  }
+  function flushEvents(){
+    if(!EVENTS_ENDPOINT || !eventQueue.length) return;
+    var batch = eventQueue.splice(0, 50);
+    // text/plain keeps this a "simple" request: no CORS preflight, and keepalive lets it finish while the page closes
+    try{
+      fetch(EVENTS_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({anon_id:ANON_ID, events:batch}), keepalive:true}).catch(function(){});
+    }catch(e){}
+  }
+  window.addEventListener('pagehide', flushEvents);
+  // the latest state of the day being looked at, so the backend can work out completion rates;
+  // future days are skipped, and today's not-yet-due items are marked so they don't count as missed
+  function scheduleSnapshot(){
+    if(!EVENTS_ENDPOINT) return;
+    clearTimeout(snapTimer);
+    snapTimer = setTimeout(function(){
+      var key = dateKey(state.selectedDate), list = state.days[key];
+      if(!list || key > todayKey()) return;
+      var nowM = key===todayKey() ? new Date().getHours()*60+new Date().getMinutes() : 1440;
+      track('day_snapshot', {date:key, items:list.map(function(a){
+        return {name:a.name, cat:a.cat, start:a.start, end:a.end, done:isComplete(a), due: toMin(a.end) <= nowM};
+      })});
+    }, 1500);
+  }
 
   var KEY_PROJECTS = 'zuoxibu_projects_v1';
   function loadProjects(){
@@ -1422,9 +1465,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var before = isComplete(findById(scope==='day' ? getDayActivities(key) : state.template, id));
     if(scope==='day'){ state.days[key] = list; saveDays(state.days); }
     else { state.template = list; saveTemplate(list); }
-    if(scope==='day') announceProgress(findById(list, id), before);
+    if(scope==='day'){
+      var t = findById(list, id);
+      announceProgress(t, before);
+      if(t) track('activity_toggled', {date:key, name:t.name, cat:t.cat, start:t.start, end:t.end, done:!!t.done, at:toHHMM(nowMinutes())});
+    }
     render();
   }
+  function nowMinutes(){ var d = new Date(); return d.getHours()*60+d.getMinutes(); }
 
   // ---------- activity → learning project progress ----------
   // a day's activity linked to a project counts toward it once it's fully done:
@@ -1819,6 +1867,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var amount = projectId ? (parseFloat($('fAmount').value)||0) : 0;
     if(projectId && amount<=0){ showWarning('关联了学习项目的话，每次推进的量要大于 0。'); return; }
     var list = currentList().slice();
+    if(state.editing.scope==='day') noteManualEdit(state.editing.mode==='add' ? 'add' : 'edit', name, state.editing.id);
     if(state.editing.mode==='add'){
       list.push({id:uid(), name:name, start:startStr, end:endStr, cat:cat, kind:kind, subs:subsToSave, done:false, group:groupVal, projectId:projectId, amount:amount});
     } else {
@@ -1832,6 +1881,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     render();
   });
   $('deleteBtn').addEventListener('click', function(){
+    if(state.editing.scope==='day'){
+      var gone = findById(currentList(), state.editing.id);
+      noteManualEdit('delete', gone ? gone.name : '', state.editing.id);
+    }
     var list = currentList().filter(function(a){ return a.id!==state.editing.id; });
     persistCurrentList(list);
     closeModal();
@@ -2398,9 +2451,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var today = isViewingToday();
     var ctx = {isToday:today, now:nowMin(), from: today ? ceil5(nowMin()) : 0};
 
+    var t0 = Date.now();
     function finish(ops, reply, source){
       $('aiSend').disabled = false;
+      track('ai_request', {text:text, source:source, n_ops:ops.length, ops:ops.slice(0,10), reply:reply||'', latency_ms:Date.now()-t0});
       if(!ops.length){
+        track('ai_no_ops', {text:text, source:source, reply:reply||''});
         aiStatus((reply ? reply+' ' : '')+'没找到要改的内容。可以试试「下午三点到五点加个会」「今晚不去散步了」「耽误了半小时」。', true);
         return;
       }
@@ -2409,7 +2465,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         aiStatus('这样改不需要动任何安排。'); return;
       }
       aiStatus('');
-      pendingPlan = {key:key, before:list, plan:plan};
+      pendingPlan = {key:key, before:list, plan:plan, planId:uid(), text:text, source:source};
+      var kinds = {};
+      plan.changes.forEach(function(c){ kinds[c.type] = (kinds[c.type]||0)+1; });
+      track('plan_shown', {plan_id:pendingPlan.planId, text:text, source:source, n_changes:plan.changes.length, kinds:kinds, warnings:plan.warnings.length});
       showPlan(text, reply, plan, source);
     }
 
@@ -2423,7 +2482,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     if(!AI_ENDPOINT && !sampleAPI){ local(); return; }
     callLLM(buildPrompt(text, list, ctx)).then(function(res){
       var ops = validateOps(res.data, list);
-      if(!ops.length){ local('local-fallback'); return; }
+      if(!ops.length){
+        // the model answered but found nothing to do: let the local rules have a go, and only call it
+        // a fallback if they actually found something — otherwise it's the model's "didn't understand"
+        var r = localParse(text, list, ctx);
+        if(r.ops.length) finish(r.ops, r.reply, 'local-fallback');
+        else finish([], res.data && typeof res.data.reply==='string' ? res.data.reply : '', res.source);
+        return;
+      }
       finish(ops, res.data && typeof res.data.reply==='string' ? res.data.reply : '', res.source);
     }).catch(function(){ local('local-fallback'); });
   }
@@ -2460,11 +2526,27 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('planOverlay').hidden = false;
   }
   function closePlan(){ $('planOverlay').hidden = true; pendingPlan = null; }
-  $('planCancel').addEventListener('click', closePlan);
-  $('planOverlay').addEventListener('click', function(e){ if(e.target===$('planOverlay')) closePlan(); });
+  function cancelPlan(){
+    if(pendingPlan) track('plan_cancelled', {plan_id:pendingPlan.planId, text:pendingPlan.text, source:pendingPlan.source, n_changes:pendingPlan.plan.changes.length});
+    closePlan();
+  }
+  // the plan applied most recently — a manual edit soon after it is a quiet sign the AI got something wrong
+  var lastApplied = null;
+  function noteManualEdit(action, name, id){
+    if(!lastApplied || lastApplied.key!==dateKey(state.selectedDate)) return;
+    var secs = (Date.now()-lastApplied.at)/1000;
+    if(secs > 300){ lastApplied = null; return; }
+    track('edit_after_ai', {plan_id:lastApplied.planId, text:lastApplied.text, source:lastApplied.source,
+      action:action, name:name, seconds_after:Math.round(secs), touched_ai_item: lastApplied.ids.indexOf(id)>=0});
+  }
+  $('planCancel').addEventListener('click', cancelPlan);
+  $('planOverlay').addEventListener('click', function(e){ if(e.target===$('planOverlay')) cancelPlan(); });
   $('planApply').addEventListener('click', function(){
     if(!pendingPlan) return;
     var p = pendingPlan, before = p.before;
+    track('plan_applied', {plan_id:p.planId, text:p.text, source:p.source, n_changes:p.plan.changes.length});
+    lastApplied = {planId:p.planId, text:p.text, source:p.source, key:p.key, at:Date.now(),
+                   ids:p.plan.changes.map(function(c){ return c.id; }).filter(Boolean)};
     state.days[p.key] = p.plan.list;
     saveDays(state.days);
     aiFlashIds = {};
@@ -2473,7 +2555,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('aiInput').value = '';
     render();
     setTimeout(function(){ aiFlashIds = {}; }, 2500);
+    var appliedAt = Date.now();
     showToast('已调整 '+p.plan.changes.length+' 项', {label:'撤销', fn:function(){
+      track('plan_undone', {plan_id:p.planId, text:p.text, source:p.source, seconds_after:Math.round((Date.now()-appliedAt)/1000)});
+      if(lastApplied && lastApplied.planId===p.planId) lastApplied = null;
       state.days[p.key] = before; saveDays(state.days); aiFlashIds = {}; render();
     }});
   });
@@ -2518,6 +2603,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
   // ---------- boot ----------
   render();
+  scheduleSnapshot();
   setInterval(function(){
     if(state.view==='day' && dateKey(state.selectedDate)===todayKey()){
       renderTimeline(getDayActivities(todayKey()), true);
