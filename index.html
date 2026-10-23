@@ -965,11 +965,30 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   var CONGRATS_PHRASES = [
     '今天真棒！', '了不起，今天满分！', '干得漂亮，今天全勤！', '学习力爆棚的一天！',
     '你今天超厉害！', '又完成了一天的目标，真棒！', '坚持就是胜利，今天满分！',
-    '今天的你闪闪发光！', '了不起的今天，继续加油！', '圆满的一天，为自己鼓掌！'
+    '今天的你闪闪发光！', '了不起的今天，继续加油！', '圆满的一天，为自己鼓掌！',
+    '辛苦啦，今天的你很努力。', '一步一步，你真的在变好。', '今天也没有放弃，真好。',
+    '累了就好好休息，你已经做到了。', '把今天过好，就是最大的进步。', '慢一点也没关系，你一直在往前走。',
+    '今天的坚持，明天会看见。', '给认真的自己一个拥抱。', '你比昨天更厉害了一点点。',
+    '说到做到，这就是你。', '今天的努力，一点都没有白费。', '能坚持下来的人，都很了不起。',
+    '今天的你值得被夸奖。', '又攒下了一天的底气。', '做完了！可以安心休息了。',
+    '每一个勾，都是你对自己的承诺。', '小小的完成，也是大大的胜利。', '今天的你，闪着光。',
+    '日拱一卒，功不唐捐。', '你在悄悄变成更好的自己。', '认真生活的人，运气不会太差。',
+    '今天辛苦了，晚上早点睡哦。', '坚持本身，就已经很酷了。', '再难的日子，你也走完了。',
+    '你做到了，为你骄傲。', '今天的计划，一个不落。', '积少成多，未来可期。',
+    '一天一点，终会抵达。', '你的努力，时间都记得。', '今天也是元气满满的一天！',
+    '稳稳地，又完成了一天。', '不急不躁，你做得很好。', '好好吃饭，好好休息，明天继续。',
+    '这一天，你没有辜负自己。', '自律的你，真的很迷人。', '今天的汗水，是明天的底气。',
+    '把每一天过成满分。', '你一直比自己想象的更坚强。', '目标达成！奖励自己一下吧。',
+    '学到的东西，谁也拿不走。', '今天的你，又升级了。', '持续的力量，最强大。',
+    '你看，你可以的。', '不用和别人比，你在超越昨天的自己。', '今天收工！明天见。',
+    '一点点进步，也值得庆祝。', '每天都在发光的你，太棒了。', '认真的样子，最好看。',
+    '今天的努力已签收。', '你在为喜欢的未来存钱。'
   ];
+  // rotate through the list by date, so no two days in a row (or within 60 days) get the same line
   function phraseForDate(k){
-    var h=0; for(var i=0;i<k.length;i++){ h=(h*31+k.charCodeAt(i))|0; }
-    return CONGRATS_PHRASES[Math.abs(h)%CONGRATS_PHRASES.length];
+    var p = k.split('-');
+    var dayNo = Math.floor(Date.UTC(+p[0], +p[1]-1, +p[2]) / 86400000);
+    return CONGRATS_PHRASES[((dayNo % CONGRATS_PHRASES.length) + CONGRATS_PHRASES.length) % CONGRATS_PHRASES.length];
   }
   // celebrate the moment a day flips to fully done (every time it does), but not when you
   // merely open or reload a day that was already complete
