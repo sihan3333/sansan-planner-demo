@@ -960,12 +960,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   }
 
   // ---------- celebration: full day of learning done ----------
-  var KEY_CELEBRATED = 'zuoxibu_celebrated_v1';
-  function loadCelebrated(){
-    try{ return JSON.parse(localStorage.getItem(KEY_CELEBRATED)) || {}; }catch(e){ return {}; }
-  }
-  function saveCelebrated(obj){ localStorage.setItem(KEY_CELEBRATED, JSON.stringify(obj)); }
-  var celebratedDates = loadCelebrated();
+  // whether each day's learning was all done at its last render — kept in memory only
+  var learnAllDone = {};
   var CONGRATS_PHRASES = [
     '今天真棒！', '了不起，今天满分！', '干得漂亮，今天全勤！', '学习力爆棚的一天！',
     '你今天超厉害！', '又完成了一天的目标，真棒！', '坚持就是胜利，今天满分！',
@@ -975,12 +971,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var h=0; for(var i=0;i<k.length;i++){ h=(h*31+k.charCodeAt(i))|0; }
     return CONGRATS_PHRASES[Math.abs(h)%CONGRATS_PHRASES.length];
   }
+  // celebrate the moment a day flips to fully done (every time it does), but not when you
+  // merely open or reload a day that was already complete
   function maybeCelebrate(dateKeyStr, doneCount, total){
-    if(total<=0 || doneCount<total) return;
-    if(celebratedDates[dateKeyStr]) return;
-    celebratedDates[dateKeyStr] = true;
-    saveCelebrated(celebratedDates);
-    runCelebration(dateKeyStr);
+    var all = total>0 && doneCount>=total;
+    var seen = learnAllDone.hasOwnProperty(dateKeyStr), was = learnAllDone[dateKeyStr];
+    learnAllDone[dateKeyStr] = all;
+    if(all && seen && !was) runCelebration(dateKeyStr);
   }
   var celebrateTimers = [];
   function runCelebration(dateKeyStr){
