@@ -264,6 +264,23 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .ai-status{margin-top:7px;font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
 .ai-status.error{color:var(--danger);}
 
+.suggest-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:0 0 12px;box-shadow:var(--shadow-sm);}
+.sg-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 2px 8px;}
+.sg-title{font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--accent-2);}
+.sg-sub{font-size:11.5px;color:var(--ink-faint);}
+.sg-list{display:flex;flex-direction:column;gap:8px;}
+.sg-item{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 11px;}
+.sg-item.warn{border-color:color-mix(in srgb, var(--warn) 45%, var(--line));background:color-mix(in srgb, var(--warn) 7%, var(--bg));}
+.sg-text{font-size:13px;line-height:1.55;color:var(--ink);}
+.sg-text b{font-weight:600;}
+.sg-why{font-size:11.5px;color:var(--ink-faint);margin-top:2px;line-height:1.5;}
+.sg-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
+.sg-actions .primary-btn,.sg-actions .ghost-btn{padding:5px 11px;font-size:12px;}
+.proj-behind{flex-basis:100%;font-size:12px;color:var(--warn);font-weight:500;}
+.proj-meta .proj-deadline{color:var(--ink-soft);}
+.modal input.pj-deadline{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:8px 10px;font-family:var(--font-mono);font-size:13px;}
+.plan-scope{display:inline-block;font-size:10.5px;color:var(--ink-soft);background:var(--surface-2);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px;font-weight:500;}
+
 .plan-modal{max-width:440px;}
 .plan-said{font-size:13px;color:var(--ink-soft);background:var(--surface-2);border-radius:9px;padding:8px 11px;line-height:1.5;}
 .plan-reply{margin-top:10px;font-size:13.5px;color:var(--ink);line-height:1.55;}
@@ -385,6 +402,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     </div>
     <div class="ai-chips" id="aiChips"></div>
     <div class="ai-status" id="aiStatus" hidden></div>
+  </section>
+
+  <section id="suggestBox" class="suggest-box" hidden>
+    <div class="sg-head"><span class="sg-title">✦ 发现了几件事</span><span class="sg-sub">根据你的进度和最近的修改，由规则统计得出</span></div>
+    <div class="sg-list" id="suggestList"></div>
   </section>
 
   <section id="learnSummary" class="learn-summary" hidden>
@@ -526,6 +548,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         <input type="number" id="pjDaily" min="0" step="0.5">
       </div>
     </div>
+    <label>截止日期（可选）</label>
+    <input type="date" id="pjDeadline" class="pj-deadline">
+    <div class="subs-hint">填了截止日期、每天目标留空的话，会按「剩余量 ÷ 剩余天数」自动算；进度落后时会提醒你。</div>
     <div class="modal-warning" id="projModalWarning" hidden></div>
     <div class="modal-actions">
       <button class="danger-btn" id="pjDeleteBtn" hidden>删除</button>
@@ -558,6 +583,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     <input type="file" id="importFile" accept="application/json" hidden>
     <textarea id="fallbackText" hidden readonly></textarea>
     <div class="modal-actions">
+      <button class="ghost-btn subtle" id="resetSampleBtn">恢复示例数据</button>
       <div class="spacer"></div>
       <button class="ghost-btn" id="backupClose">关闭</button>
     </div>
@@ -674,8 +700,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         return data;
       }
     }catch(e){}
+    freshVisitor = true;
     return {};
   }
+  var freshVisitor = false;
   function saveDays(obj){ localStorage.setItem(KEY_DAYS, JSON.stringify(obj)); scheduleSnapshot(); }
 
   // ---------- 使用数据：发给自己的后端（backend/），用来算方案采纳率、完成率 ----------
@@ -727,12 +755,38 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       var raw = localStorage.getItem(KEY_PROJECTS);
       if(raw) return JSON.parse(raw);
     }catch(e){}
-    // fictional sample projects so a first-time visitor sees the progress view filled in
+    // fictional sample projects so a first-time visitor sees the progress view filled in;
+    // the coding course is deliberately a little behind so the "落后提醒" has something to show
     return [
-      {id:'demo-coding', name:'编程入门视频课', category:'学编程', total:30, unit:'集', current:8, dailyTarget:1},
-      {id:'demo-book', name:'一本小说', category:'读书', total:320, unit:'页', current:96, dailyTarget:20},
-      {id:'demo-words', name:'核心词汇', category:'英语', total:1500, unit:'个', current:420, dailyTarget:50}
+      {id:'demo-coding', name:'编程入门视频课', category:'学编程', total:30, unit:'集', current:8, dailyTarget:1, deadline:dateKeyIn(15)},
+      {id:'demo-book', name:'一本小说', category:'读书', total:320, unit:'页', current:96, dailyTarget:20, deadline:dateKeyIn(12)},
+      {id:'demo-words', name:'核心词汇', category:'英语', total:1500, unit:'个', current:420, dailyTarget:50, deadline:dateKeyIn(30)}
     ];
+  }
+  function dateKeyIn(n){ return dateKey(new Date(Date.now() + n*86400000)); }
+  function withProject(p, patch){
+    var o = {};
+    Object.keys(p).forEach(function(k){ o[k] = p[k]; });
+    Object.keys(patch).forEach(function(k){ o[k] = patch[k]; });
+    return o;
+  }
+
+  // a fictional 10-day history for first-time visitors, so "根据修改历史建议更新模板" has habits to find:
+  // 散步 mostly skipped, 英语听力 usually done right after dinner, and 复习 often added in its place
+  function sampleHistory(template){
+    var days = {};
+    for(var i=10;i>=1;i--){
+      var list = cloneList(template).map(function(a){ a.projectId=''; a.amount=0; return a; });
+      if([1,2,3,5,6,8,9].indexOf(i)>=0) list = list.filter(function(a){ return a.name!=='散步'; });
+      if([1,2,4,6,7,9].indexOf(i)>=0) list.forEach(function(a){ if(a.name==='英语听力'){ a.start='19:00'; a.end='19:45'; } });
+      if([1,3,5,8,9].indexOf(i)>=0) list.push({id:uid(), name:'复习', start:'20:45', end:'21:45', cat:'learn', kind:'range', group:'', projectId:'', amount:0, subs:[]});
+      list.forEach(function(a, idx){
+        if(a.cat==='sleep') return;
+        a.done = a.cat==='learn' ? (i+idx)%3!==0 : (i+idx)%5!==0;
+      });
+      days[dateKeyIn(-i)] = list.sort(function(p,q){ return toMin(p.start)-toMin(q.start); });
+    }
+    return days;
   }
   function saveProjects(list){ localStorage.setItem(KEY_PROJECTS, JSON.stringify(list)); }
 
@@ -753,6 +807,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     editing: null, // {mode:'add'|'edit', scope:'day'|'template', id}
     editingProjectId: null
   };
+  if(freshVisitor){ state.days = sampleHistory(state.template); saveDays(state.days); }
 
   function cloneList(list){
     return list.map(function(a){
@@ -828,7 +883,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('learnSummary').hidden = state.view!=='day';
     $('timeline').parentElement.hidden = state.view==='projects';
     $('projectsView').hidden = state.view!=='projects';
-    $('aiBar').hidden = state.view!=='day';
+    renderAiChips();
+    renderSuggestions();
     $('addBtn').title = state.view==='projects' ? '添加学习项目' : '添加活动';
 
     if(state.view==='day'){
@@ -840,7 +896,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       $('dateJump').value = dateKey(d);
       renderTimeline(getDayActivities(dateKey(d)), isToday);
       renderLearnSummary(getDayActivities(dateKey(d)));
-      renderAiChips();
     } else if(state.view==='template'){
       renderTimeline(state.template, false);
       var learnMin = state.template.filter(function(a){ return a.cat==='learn'; })
@@ -1546,6 +1601,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var countdownHtml;
     if(cur>=p.total){
       countdownHtml = '<span class="proj-countdown done">🎉 已完成</span>';
+    } else if(p.deadline){
+      countdownHtml = '<span class="proj-countdown proj-deadline">截止 '+shortDate(p.deadline)+' · 还剩 '+daysLeftUntil(p.deadline)+' 天</span>';
     } else if(p.dailyTarget>0){
       var days = Math.ceil(remaining/p.dailyTarget);
       countdownHtml = '<span class="proj-countdown">还剩 '+days+' 天</span>';
@@ -1573,6 +1630,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       fs.className = 'proj-from-schedule';
       fs.textContent = '其中 '+fromSchedule+' '+(p.unit||'个')+' 来自日程打勾';
       card.querySelector('.proj-meta').appendChild(fs);
+    }
+    var lag = behindInfo(p);
+    if(lag){
+      var bh = document.createElement('span');
+      bh.className = 'proj-behind';
+      bh.textContent = '⚠ 照每天 '+p.dailyTarget+' '+(p.unit||'个')+'，到截止日还差 '+lag.gap+' '+(p.unit||'个');
+      card.querySelector('.proj-meta').appendChild(bh);
     }
     card.querySelector('.proj-current-input').value = cur;
     card.querySelector('.proj-edit-btn').addEventListener('click', function(){ openProjectEdit(p.id); });
@@ -1662,7 +1726,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   function updateProjectProgress(id, newCurrent){
     var base = Math.round((newCurrent - credited(id))*100)/100;
     state.projects = state.projects.map(function(p){
-      return p.id===id ? {id:p.id, name:p.name, category:p.category, total:p.total, unit:p.unit, dailyTarget:p.dailyTarget, current:base} : p;
+      return p.id===id ? withProject(p, {current:base}) : p;
     });
     saveProjects(state.projects);
     renderProjects();
@@ -1699,7 +1763,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('pjTotal').value = '';
     $('pjUnit').value = '';
     $('pjCurrent').value = 0;
-    $('pjDaily').value = 1;
+    $('pjDaily').value = '';
+    $('pjDeadline').value = '';
     $('pjDeleteBtn').hidden = true;
     $('projModalWarning').hidden = true;
     renderProjQuickPicks();
@@ -1717,6 +1782,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('pjUnit').value = p.unit||'';
     $('pjCurrent').value = progressOf(p);
     $('pjDaily').value = p.dailyTarget;
+    $('pjDeadline').value = p.deadline || '';
     $('pjDeleteBtn').hidden = false;
     $('projModalWarning').hidden = true;
     renderProjQuickPicks();
@@ -1737,9 +1803,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     if(!name){ projWarn('给项目起个名字吧。'); return; }
     if(isNaN(total) || total<=0){ projWarn('总量要是个大于0的数字。'); return; }
     if(isNaN(current) || current<0){ current = 0; }
+    var deadline = $('pjDeadline').value || '';
+    if(deadline && deadline < todayKey()){ projWarn('截止日期已经过去了，换一个以后的日期吧。'); return; }
+    // with a deadline and no daily target, the rule works it out: what's left ÷ days left
+    if(deadline && !(daily>0)) daily = niceDaily((total - Math.max(current,0)) / daysLeftUntil(deadline));
     if(isNaN(daily) || daily<0){ daily = 0; }
     if(state.editingProjectId){ current = Math.round((current - credited(state.editingProjectId))*100)/100; }
-    var obj = {id: state.editingProjectId || uid(), name:name, category:category, total:total, unit:unit, current:current, dailyTarget:daily};
+    var obj = {id: state.editingProjectId || uid(), name:name, category:category, total:total, unit:unit, current:current, dailyTarget:daily, deadline:deadline};
     if(state.editingProjectId){
       state.projects = state.projects.map(function(p){ return p.id===state.editingProjectId ? obj : p; });
     } else {
@@ -2017,6 +2087,77 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   function isViewingToday(){ return dateKey(state.selectedDate)===todayKey(); }
   function rangeText(s, e){ return s===e ? toHHMM(s) : toHHMM(s)+'–'+toHHMM(e); }
 
+  // ----- 学习项目：规则（每天目标、落后判断） -----
+  var PUNITS = '集|章|节|页|课|讲|篇|题|单元|单词|词|个';
+  var BIGNUM = '(\\d+(?:\\.\\d+)?|[零〇一二两三四五六七八九十]{1,3})';
+  function bigNum(s){ return /^\d/.test(s) ? parseFloat(s) : cnNum(s); }
+  function niceDaily(x){ if(!(x>0) || !isFinite(x)) return 0; return x>=10 ? Math.ceil(x) : Math.ceil(x*2)/2; }
+  function daysLeftUntil(key){
+    var t = new Date(todayKey()+'T00:00:00'), d = new Date(key+'T00:00:00');
+    return Math.max(1, Math.round((d-t)/86400000)+1);
+  }
+  function shortDate(key){ var p = key.split('-'); return (+p[1])+'月'+(+p[2])+'日'; }
+  // behind = at the current daily target, the deadline comes before the work is done
+  function behindInfo(p){
+    if(!p.deadline || !(p.dailyTarget>0)) return null;
+    var remaining = p.total - progressOf(p);
+    if(remaining <= 0) return null;
+    var days = daysLeftUntil(p.deadline), need = remaining/days;
+    if(need <= p.dailyTarget*1.05) return null;
+    var daysNeeded = Math.ceil(remaining/p.dailyTarget);
+    return {gap:Math.round((remaining - p.dailyTarget*days)*10)/10, days:days, remaining:Math.round(remaining*10)/10,
+            need:Math.round(need*10)/10, newDaily:niceDaily(need), newDeadline:dateKeyIn(daysNeeded-1), delay:daysNeeded-days};
+  }
+  function guessProjectCategory(name){
+    var cats = getLearnCategoryNames();
+    for(var i=0;i<cats.length;i++){
+      var c = cats[i];
+      if(name.indexOf(c)>=0) return c;
+      for(var j=0;j+2<=c.length;j++){ if(name.indexOf(c.substr(j,2))>=0) return c; }
+    }
+    return '';
+  }
+  function indexOfProject(list, id){ for(var i=0;i<list.length;i++){ if(list[i].id===id) return i; } return -1; }
+  function buildProjectPlan(ops){
+    var projects = state.projects.slice(), changes = [], warnings = [];
+    ops.forEach(function(o){
+      if(o.op==='project_add'){
+        var current = o.current>0 ? o.current : 0, deadline = o.deadline || '';
+        if(deadline && deadline < todayKey()){ warnings.push('截止日期已经过去了，没有设置。'); deadline = ''; }
+        var unit = o.unit || '个';
+        var daily = deadline ? niceDaily((o.total-current)/daysLeftUntil(deadline)) : (o.dailyTarget>0 ? o.dailyTarget : 0);
+        var p = {id:uid(), name:o.name, category:o.category || guessProjectCategory(o.name), total:o.total, unit:unit,
+                 current:current, dailyTarget:daily, deadline:deadline};
+        projects.push(p);
+        changes.push({type:'proj-add', scope:'project', name:p.name,
+          time:'共 '+p.total+' '+unit+(current ? '，已完成 '+current : '')+(deadline ? ' · 截止 '+shortDate(deadline) : '')+(p.category ? ' · 归到「'+p.category+'」' : ''),
+          note: daily ? (deadline ? '每天 '+daily+' '+unit+'（规则算的：剩余 '+(p.total-current)+' ÷ 剩余 '+daysLeftUntil(deadline)+' 天，向上取整）' : '每天 '+daily+' '+unit)
+                      : '没说截止日期，每天目标先空着，之后说一句「12 月底前学完」就能补上'});
+      } else if(o.op==='project_progress'){
+        var i = indexOfProject(projects, o.id), q = projects[i], before = progressOf(q);
+        var after = o.value!=null ? o.value : before + o.amount;
+        after = Math.round(Math.max(0, after)*10)/10;
+        projects[i] = withProject(q, {current: Math.round((after - credited(q.id))*100)/100});
+        changes.push({type:'proj-progress', scope:'project', name:q.name,
+          time: before+' → '+after+' '+(q.unit||'个')+(o.value==null ? '（+'+o.amount+'）' : ''),
+          note: after>=q.total ? '🎉 这个项目完成了' : '还差 '+Math.round((q.total-after)*10)/10+' '+(q.unit||'个')});
+      } else if(o.op==='project_update'){
+        var k = indexOfProject(projects, o.id), r = projects[k], patch = {}, parts = [];
+        if(o.deadline){
+          if(o.deadline < todayKey()) warnings.push('截止日期已经过去了，没有修改。');
+          else { patch.deadline = o.deadline; parts.push('截止 '+(r.deadline ? shortDate(r.deadline)+' → ' : '')+shortDate(o.deadline)); }
+        }
+        if(o.dailyTarget>0){ patch.dailyTarget = o.dailyTarget; parts.push('每天 '+(r.dailyTarget||0)+' → '+o.dailyTarget+' '+(r.unit||'个')); }
+        if(!parts.length) return;
+        projects[k] = withProject(r, patch);
+        var lag = behindInfo(projects[k]);
+        changes.push({type:'proj-update', scope:'project', name:r.name, time:parts.join('，'),
+          note: lag ? '按这个安排，到截止日还会差 '+lag.gap+' '+(r.unit||'个') : '按这个安排能按时完成'});
+      }
+    });
+    return {projects:projects, changes:changes, warnings:warnings};
+  }
+
   // ----- 本地规则理解（没有大模型时的兜底，也覆盖演示用的常见说法） -----
   var CN_DIGIT = {'零':0,'〇':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
   function cnNum(s){
@@ -2035,6 +2176,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     '凌晨':[0,360], '早上':[360,600], '早晨':[360,600], '上午':[480,720], '中午':[690,840],
     '下午':[720,1080], '傍晚':[1020,1170], '晚上':[1080,null], '今晚':[1080,null], '夜里':[1200,null]
   };
+  // "以后 / 每天都 / 模板": the change is about the usual day, not just this one
+  var TEMPLATE_HINT = /以后|往后|每天都|天天|从明天起|基础模板|模板/;
   function withPeriod(p, h){
     if(/下午|傍晚|晚上|今晚|夜里/.test(p||'')){ if(h<12) h+=12; }
     else if(p==='中午'){ if(h<=3) h+=12; }
@@ -2073,6 +2216,20 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     if(m[4]) return cnNum(m[4]);
     return null;
   }
+  function parseDeadline(s){
+    var now = new Date(), y = now.getFullYear(), m;
+    if((m = s.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?/)) || (m = s.match(/(\d{1,2})[.\/](\d{1,2})(?=\s*(前|之前|截止|号|日))/))){
+      var d = new Date(y, +m[1]-1, +m[2]);
+      if(dateKey(d) < todayKey()) d = new Date(y+1, +m[1]-1, +m[2]);
+      return dateKey(d);
+    }
+    if(/月底/.test(s)) return dateKey(new Date(y, now.getMonth()+1, 0));
+    if(/年底/.test(s)) return y+'-12-31';
+    if((m = s.match(new RegExp(NUM+'\\s*个?\\s*(周|星期|礼拜)')))) return dateKeyIn(cnNum(m[1])*7-1);
+    if((m = s.match(new RegExp(NUM+'\\s*个\\s*月'))) && /内|之内|以内|前/.test(s)) return dateKeyIn(cnNum(m[1])*30-1);
+    if((m = s.match(new RegExp(NUM+'\\s*天\\s*(内|之内|以内)')))) return dateKeyIn(cnNum(m[1])-1);
+    return '';
+  }
   function guessCat(name){
     if(/会|工作|面试|汇报|客户|报告|加班|邮件|项目|实习|电话/.test(name)) return 'work';
     if(/学|复习|课|作业|读|背|练习|刷题|论文|单词|英语|编程|SQL|Python/i.test(name)) return 'learn';
@@ -2084,7 +2241,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   function cleanName(clause){
     var s = clause.replace(TIME_RE, '').replace(new RegExp(DUR_RE.source,'g'), '');
     s = s.replace(new RegExp(PERIODS,'g'), '')
-      .replace(/今天|明天|待会儿?|等会儿?|一会儿?|帮我|给我|我要|我想|我得|还要|再|然后|之后|以后|加上|添加|增加|安排|插入|插|加|有个|有一个|约了?|改成|换成|一下|一个|一段|个|的|吧|了|呢|啊|到|至|从/g, '')
+      .replace(/今天|明天|以后|往后|每天都|每天|天天|从明天起|基础模板|模板里?|待会儿?|等会儿?|一会儿?|帮我|给我|我要|我想|我得|还要|再|然后|之后|加上|添加|增加|安排|插入|插|加|有个|有一个|约了?|改成|换成|一下|一个|一段|个|的|吧|了|呢|啊|到|至|从|都/g, '')
       .replace(/[，。,.!！?？\s~～—-]/g, '');
     return s.slice(0, 20);
   }
@@ -2107,36 +2264,97 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     });
     return best;
   }
-  function localParse(text, list, ctx){
+  function findProject(clause, unit){
+    var best = null, bestScore = 0;
+    state.projects.forEach(function(p){
+      var score = 0;
+      [p.name, p.category].forEach(function(n){
+        n = (n||'').replace(/[《》]/g, '');
+        if(!n) return;
+        if(clause.indexOf(n)>=0){ score = Math.max(score, n.length*10); return; }
+        for(var i=0;i+2<=n.length;i++){ if(clause.indexOf(n.substr(i,2))>=0) score = Math.max(score, 3); }
+      });
+      if(unit && p.unit===unit) score += 1;
+      if(score > bestScore){ bestScore = score; best = p; }
+    });
+    if(bestScore >= 3) return best;
+    // nothing named, but only one project counts in this unit — that must be it
+    var same = unit ? state.projects.filter(function(p){ return p.unit===unit; }) : [];
+    return same.length===1 ? same[0] : null;
+  }
+  // one clause about a learning project's progress / target / deadline
+  function parseProjectClause(clause){
+    var m, p, unit;
+    if((m = clause.match(new RegExp('(?:读到|看到|学到|背到|刷到|做到|练到)\\s*第?\\s*'+BIGNUM+'\\s*('+PUNITS+')?')))){
+      unit = m[2]; p = findProject(clause, unit);
+      if(p) return {op:{op:'project_progress', id:p.id, value:bigNum(m[1])}, said:'「'+p.name+'」进度记为 '+bigNum(m[1])+' '+(p.unit||'')};
+    }
+    if((m = clause.match(new RegExp('(?:看了|学了|读了|背了|刷了|做了|完成了|练了|听了)\\s*'+BIGNUM+'\\s*('+PUNITS+')')))){
+      unit = m[2]; p = findProject(clause, unit);
+      if(p && (!p.unit || p.unit===unit || unit==='个')) return {op:{op:'project_progress', id:p.id, amount:bigNum(m[1])}, said:'「'+p.name+'」+'+bigNum(m[1])+' '+(p.unit||'')};
+    }
+    if(/截止|期限|ddl|deadline|推迟到|延后到|延期到|提前到/i.test(clause)){
+      var dl = parseDeadline(clause); p = findProject(clause);
+      if(p && dl) return {op:{op:'project_update', id:p.id, deadline:dl}, said:'「'+p.name+'」截止日改到 '+shortDate(dl)};
+    }
+    if((m = clause.match(new RegExp('每天\\s*(?:学|看|读|背|刷|做|练|听)?\\s*'+BIGNUM+'\\s*('+PUNITS+')')))){
+      p = findProject(clause, m[2]);
+      if(p) return {op:{op:'project_update', id:p.id, dailyTarget:bigNum(m[1])}, said:'「'+p.name+'」每天目标改成 '+bigNum(m[1])+' '+(p.unit||'')};
+    }
+    return null;
+  }
+  // a whole sentence that sets up a new learning project: "12月20号前学完吴恩达机器学习课，一共113集"
+  function parseProjectAdd(text){
+    if(!/学完|看完|读完|背完|刷完|做完|练完|听完|学习项目/.test(text)) return null;
+    var tm = text.match(new RegExp('(?:一共|总共|共|全部|一共有)?\\s*'+BIGNUM+'\\s*('+PUNITS+')'));
+    if(!tm) return null;
+    var nm = text.match(/(?:学完|看完|读完|背完|刷完|做完|练完|听完)(.+?)(?=[，,。；;]|一共|总共|共\s*\d|共[一二两三四五六七八九十]|$)/);
+    var name = (nm ? nm[1] : '').replace(/[《》“”"「」\s]/g, '').replace(/^(这个|那个|这本|那本|这门|那门)/, '').replace(/\d.*$/, '').replace(/的$/, '').slice(0,20);
+    var cur = text.match(new RegExp('(?:已经|已)\\s*(?:看|学|读|背|刷|做|练|听)?\\s*(?:了|到)?\\s*第?\\s*'+BIGNUM));
+    var op = {op:'project_add', name:name || '新的学习项目', total:bigNum(tm[1]), unit:tm[2]};
+    if(cur) op.current = bigNum(cur[1]);
+    var dl = parseDeadline(text.replace(tm[0], ''));
+    if(dl) op.deadline = dl;
+    return {op:op, said:'新建学习项目「'+op.name+'」，共 '+op.total+' '+op.unit+(dl ? '，'+shortDate(dl)+' 截止' : '')};
+  }
+  function localParse(text, env){
     var ops = [], said = [];
+    var pa = parseProjectAdd(text);
+    if(pa) return {ops:[pa.op], reply:'我理解为：'+pa.said+'。'};
     var wholePeriod = (text.match(new RegExp(PERIODS)) || [])[0] || '';
+    var wholeTemplate = TEMPLATE_HINT.test(text);
     text.split(/[，,。；;]|然后|再把|另外/).forEach(function(clause){
       clause = clause.trim();
       if(!clause) return;
+      var pc = parseProjectClause(clause);
+      if(pc){ ops.push(pc.op); said.push(pc.said); return; }
+      var tpl = wholeTemplate || env.defaultScope==='template';
+      var list = tpl ? env.tpl : env.day, from = tpl ? 0 : env.ctx.from, tag = tpl ? '模板里' : '';
+      var put = function(op, s){ if(tpl) op.scope = 'template'; ops.push(op); said.push(tag+s); };
       var times = parseTimes(clause), dur = parseDuration(clause);
-      if(/重排|重新排|重新安排|没做完|没完成|没做的|补上|往后排/.test(clause)){
-        ops.push({op:'replan'}); said.push('把没做完的往后排'); return;
+      if(!tpl && /重排|重新排|重新安排|没做完|没完成|没做的|补上|往后排/.test(clause)){
+        put({op:'replan'}, '把没做完的往后排'); return;
       }
       if(/晚起|起晚|迟到|耽误|推迟|顺延|晚了|拖了|延误/.test(clause)){
         if(dur){
           var op = {op:'delay', minutes:dur};
           if(times.length) op.from = toHHMM(times[0].min);
-          ops.push(op); said.push('后面顺延 '+dur+' 分钟');
+          put(op, '后面顺延 '+dur+' 分钟');
         }
         return;
       }
-      if(/取消|不去|不做|不学|不跑|不练|删掉|删除|去掉|算了|不.{1,4}了/.test(clause)){
-        var rt = findTarget(clause, list, ctx.from);
-        if(rt){ ops.push({op:'remove', id:rt.id}); said.push('去掉「'+rt.name+'」'); return; }
+      if(/取消|不去|不做|不学|不跑|不练|删掉|删除|去掉|算了|不要|不.{1,4}了/.test(clause)){
+        var rt = findTarget(clause, list, from);
+        if(rt){ put({op:'remove', id:rt.id}, '去掉「'+rt.name+'」'); return; }
       }
       if(/挪到|改到|换到|移到|调到|推到|提前到|放到|改在|挪去/.test(clause) && times.length){
-        var mt = findTarget(clause, list, ctx.from);
-        if(mt){ ops.push({op:'move', id:mt.id, start:toHHMM(times[times.length-1].min)}); said.push('把「'+mt.name+'」挪到 '+toHHMM(times[times.length-1].min)); return; }
+        var mt = findTarget(clause, list, from), at = toHHMM(times[times.length-1].min);
+        if(mt){ put({op:'move', id:mt.id, start:at}, '把「'+mt.name+'」挪到 '+at); return; }
       }
       if(/缩短|延长|只要|只学|只做|改成|缩到/.test(clause) && dur && !times.length){
-        var zt = findTarget(clause, list, ctx.from);
-        if(zt && cleanName(clause).indexOf(zt.name)>=0 || zt && !cleanName(clause)){
-          ops.push({op:'resize', id:zt.id, minutes:dur}); said.push('「'+zt.name+'」改成 '+dur+' 分钟'); return;
+        var zt = findTarget(clause, list, from);
+        if(zt && (cleanName(clause).indexOf(zt.name)>=0 || !cleanName(clause))){
+          put({op:'resize', id:zt.id, minutes:dur}, '「'+zt.name+'」改成 '+dur+' 分钟'); return;
         }
       }
       // otherwise: something new to add, as long as there's a time or a length to go on
@@ -2147,42 +2365,51 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         var s = times[0].min;
         var e = times.length>1 && times[1].linked ? times[1].min : s + (dur || 60);
         add.start = toHHMM(s); add.end = toHHMM(Math.min(e, 1440));
-        said.push('在 '+rangeText(s, Math.min(e,1440))+' 加「'+name+'」');
+        put(add, '在 '+rangeText(s, Math.min(e,1440))+' 加「'+name+'」');
       } else {
         add.minutes = dur;
         var p = (clause.match(new RegExp(PERIODS)) || [])[0] || wholePeriod;
         var w = PERIOD_WINDOW[p];
         if(w){ add.after = toHHMM(w[0]); if(w[1]!=null) add.before = toHHMM(w[1]); }
-        said.push((p?p+'':'')+'找 '+dur+' 分钟空档加「'+name+'」');
+        put(add, (p?p:'')+'找 '+dur+' 分钟空档加「'+name+'」');
       }
-      ops.push(add);
     });
     return {ops:ops, reply: said.length ? '我理解为：'+said.join('；')+'。' : ''};
   }
 
   // ----- 大模型理解（DeepSeek 中转 / Claude） -----
-  function buildPrompt(text, list, ctx){
-    var rows = list.map(function(a){
-      return a.id+' | '+a.name+' | '+a.start+(a.kind==='point'?'':'–'+a.end)+' | '+a.cat+' | '+(isComplete(a)?'已完成':'未完成');
-    }).join('\n');
-    return '你是「三三作息簿」的日程助手。用户会用一句中文口语说想怎么改这一天的日程。你只负责把这句话翻译成操作指令，不要自己排时间：时间冲突、顺延、压缩都由程序规则处理。\n\n'+
-      '当前时间：'+(ctx.isToday ? toHHMM(ctx.now) : '（查看的不是今天）')+'\n'+
-      '这一天的日程（id | 名称 | 时间 | 分类 | 状态）：\n'+rows+'\n\n'+
+  function buildPrompt(text, env){
+    var row = function(a){ return a.id+' | '+a.name+' | '+a.start+(a.kind==='point'?'':'–'+a.end)+' | '+a.cat+' | '+(isComplete(a)?'已完成':'未完成'); };
+    var proj = state.projects.map(function(p){
+      return p.id+' | '+p.name+' | 大类:'+(p.category||'无')+' | 进度 '+progressOf(p)+'/'+p.total+' '+(p.unit||'个')+' | 每天 '+(p.dailyTarget||0)+' | 截止 '+(p.deadline||'无');
+    }).join('\n') || '（暂无）';
+    var viewName = {day:'今天的日程', template:'基础模板', projects:'学习项目'}[env.view];
+    return '你是「三三作息簿」的助手。用户会用一句中文口语说想做什么。你只负责把这句话翻译成操作指令，不要自己排时间、不要自己算每天目标：时间冲突、顺延、压缩、每天目标都由程序规则处理。\n\n'+
+      '今天日期：'+todayKey()+'；当前时间：'+(env.ctx.isToday ? toHHMM(env.ctx.now) : '（查看的不是今天）')+'\n'+
+      '用户当前在「'+viewName+'」页面。\n\n'+
+      '【'+(env.dayKey===todayKey() ? '今天' : env.dayKey)+'的日程】（id | 名称 | 时间 | 分类 | 状态）：\n'+env.day.map(row).join('\n')+'\n\n'+
+      '【基础模板】（以后每天按它生成，id | 名称 | 时间 | 分类）：\n'+env.tpl.map(row).join('\n')+'\n\n'+
+      '【学习项目】（id | 名称 | 大类 | 进度 | 每天目标 | 截止）：\n'+proj+'\n\n'+
       '分类键：sleep/wake/life/exercise/learn/work/commute/care（睡眠/苏醒/生活/运动/学习/工作/通勤/护理）\n\n'+
-      '可用指令：\n'+
-      '{"op":"add","name":"简短名称","cat":"分类键","start":"HH:MM","end":"HH:MM"}  用户说了具体时间\n'+
-      '{"op":"add","name":"简短名称","cat":"分类键","minutes":数字,"after":"HH:MM","before":"HH:MM"}  只说了时长；after/before 是大致时段（上午 08:00–12:00，下午 12:00–18:00，晚上 18:00 以后），没说时段就省略\n'+
+      '日程指令（改基础模板时加 "scope":"template"，id 也要用模板里的）：\n'+
+      '{"op":"add","name":"简短名称","cat":"分类键","start":"HH:MM","end":"HH:MM"}  说了具体时间\n'+
+      '{"op":"add","name":"简短名称","cat":"分类键","minutes":数字,"after":"HH:MM","before":"HH:MM"}  只说了时长；after/before 是大致时段（上午 08:00–12:00，下午 12:00–18:00，晚上 18:00 以后），没说就省略\n'+
       '{"op":"move","id":"…","start":"HH:MM"}\n'+
       '{"op":"resize","id":"…","minutes":数字}\n'+
       '{"op":"remove","id":"…"}\n'+
       '{"op":"delay","minutes":数字,"from":"HH:MM"}  "耽误了/晚起了/后面顺延"；from 省略表示从现在开始\n'+
-      '{"op":"replan"}  "把没做完的往后排/重新安排一下"\n\n'+
+      '{"op":"replan"}  "把没做完的往后排"\n'+
+      '学习项目指令：\n'+
+      '{"op":"project_add","name":"项目名","category":"大类(可省略)","total":数字,"unit":"集/章/页/个…","current":已完成量(可省略),"deadline":"YYYY-MM-DD"(没说就省略)}\n'+
+      '{"op":"project_progress","id":"…","amount":本次增加的量}  或 {"op":"project_progress","id":"…","value":进度的新数值}\n'+
+      '{"op":"project_update","id":"…","deadline":"YYYY-MM-DD","dailyTarget":数字}  只写要改的字段\n\n'+
       '要求：\n'+
       '1. 只输出 JSON：{"reply":"一句话告诉用户你理解成了什么","ops":[...]}\n'+
-      '2. id 只能从上面的列表里选；找不到对应活动就不要编造\n'+
-      '3. 时间一律 24 小时制，"下午三点"=15:00\n'+
-      '4. 用户用参照物描述位置时（"睡前""晚饭后""午饭前""下班后"），根据上面的日程推算出具体开始时间，用带 start/end 的 add 或 move；例如"睡前加 20 分钟冥想"就放在睡觉开始前的 20 分钟\n'+
-      '5. 听不懂或和日程无关时，ops 返回空数组，并在 reply 里说明\n\n'+
+      '2. id 只能从上面的列表里选；找不到对应的就不要编造\n'+
+      '3. 说了"以后/每天都/模板里"的日程修改，改基础模板；没说的，按用户当前所在页面：在「基础模板」页就改模板，否则改日程\n'+
+      '4. "看了3集""读到150页"这类是学习项目进度，不是日程\n'+
+      '5. 时间一律 24 小时制，"下午三点"=15:00；"睡前""晚饭后"这类参照物，根据日程推算出具体开始时间，用带 start/end 的 add 或 move\n'+
+      '6. 听不懂或无关时，ops 返回空数组，并在 reply 里说明\n\n'+
       '用户说：'+text;
   }
   function callLLM(prompt){
@@ -2203,14 +2430,43 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     }
     return Promise.reject(new Error('no_llm'));
   }
-  // never trust the model's output as-is: only keep well-formed ops that point at real activities
-  function validateOps(raw, list){
+  // never trust the model's output as-is: only keep well-formed ops that point at real things
+  function validateOps(raw, env){
     if(!raw || !Array.isArray(raw.ops)) return [];
-    var ids = {}; list.forEach(function(a){ ids[a.id]=true; });
+    var dayIds = {}, tplIds = {}, projIds = {};
+    env.day.forEach(function(a){ dayIds[a.id]=true; });
+    env.tpl.forEach(function(a){ tplIds[a.id]=true; });
+    state.projects.forEach(function(p){ projIds[p.id]=true; });
     var hhmm = function(v){ return typeof v==='string' && /^([01]?\d|2[0-4]):[0-5]\d$/.test(v); };
+    var ymd = function(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); };
     var mins = function(v){ return typeof v==='number' && v>0 && v<=720; };
+    var pos = function(v){ return typeof v==='number' && v>0 && v<1e6; };
     return raw.ops.filter(function(o){
       if(!o || typeof o.op!=='string') return false;
+      if(o.op==='project_add'){
+        if(typeof o.name!=='string' || !o.name.trim() || !pos(o.total)) return false;
+        o.name = o.name.trim().slice(0,20);
+        o.unit = typeof o.unit==='string' && o.unit.trim() ? o.unit.trim().slice(0,6) : '个';
+        if(!(o.current>=0)) delete o.current;
+        if(o.deadline && !ymd(o.deadline)) delete o.deadline;
+        if(typeof o.category!=='string') delete o.category;
+        return true;
+      }
+      if(o.op==='project_progress') return projIds[o.id] && (typeof o.value==='number' ? o.value>=0 : pos(o.amount));
+      if(o.op==='project_update'){
+        if(!projIds[o.id]) return false;
+        if(o.deadline && !ymd(o.deadline)) delete o.deadline;
+        if(!pos(o.dailyTarget)) delete o.dailyTarget;
+        return !!(o.deadline || o.dailyTarget);
+      }
+      // schedule ops: work out which list the id belongs to
+      if(o.scope!=='template') delete o.scope;
+      if(o.id){
+        if(o.scope==='template' && !tplIds[o.id]) return false;
+        if(!o.scope && !dayIds[o.id]){ if(tplIds[o.id]) o.scope = 'template'; else return false; }
+      } else if(!o.scope && env.defaultScope==='template' && o.op==='add'){
+        o.scope = 'template';
+      }
       if(o.op==='add'){
         if(typeof o.name!=='string' || !o.name.trim()) return false;
         if(!CATS.some(function(c){ return c.key===o.cat; })) o.cat = guessCat(o.name);
@@ -2221,11 +2477,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         if(o.before && !hhmm(o.before)) delete o.before;
         return true;
       }
-      if(o.op==='move') return ids[o.id] && hhmm(o.start);
-      if(o.op==='resize') return ids[o.id] && mins(o.minutes);
-      if(o.op==='remove') return !!ids[o.id];
+      if(o.op==='move') return !!o.id && hhmm(o.start);
+      if(o.op==='resize') return !!o.id && mins(o.minutes);
+      if(o.op==='remove') return !!o.id;
       if(o.op==='delay') return mins(o.minutes) && (!o.from || hhmm(o.from));
-      return o.op==='replan';
+      return o.op==='replan' && o.scope!=='template';
     });
   }
 
@@ -2299,7 +2555,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
           var lo = Math.max(o.after ? toMin(o.after) : 0, from);
           var hi = Math.min(o.before ? toMin(o.before) : bed, bed);
           s = findGap(o.minutes, lo, hi);
-          if(s==null) s = ceil5(lo); // no room: put it at the start of the window and let the rules make room
+          if(s==null){
+            // no room: put it at the start of the window (but not inside sleep) and let the rules make room
+            s = ceil5(lo);
+            items.forEach(function(y){ if(live(y) && y.a.cat==='sleep' && y.s<=s && y.e>s) s = y.e; });
+          }
           e = s + o.minutes;
         }
         var na = {id:uid(), name:o.name, start:toHHMM(s), end:toHHMM(Math.min(e,1440)), cat:o.cat,
@@ -2411,21 +2671,32 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var p = h<12 ? '上午' : (h===12 ? '中午' : (h<18 ? '下午' : '晚上'));
     return {p:p, n:n[h>12 ? h-12 : h]};
   }
+  // the box is the same on every page; only the examples change with where you are
   function renderAiChips(){
-    var chips = [];
-    if(isViewingToday()){
-      var h = new Date().getHours()+1;
-      if(h>=8 && h<=20){
-        var a = cnHour(h), b = cnHour(h+2);
-        chips.push(a.p+a.n+'点到'+(a.p===b.p?'':b.p)+b.n+'点加一个组会');
+    var chips = [], replan = false;
+    if(state.view==='day'){
+      $('aiInput').placeholder = '一句话改日程、记进度，比如「下午加两小时工作」';
+      if(isViewingToday()){
+        var h = new Date().getHours()+1;
+        if(h>=8 && h<=20){
+          var a = cnHour(h), b = cnHour(h+2);
+          chips.push(a.p+a.n+'点到'+(a.p===b.p?'':b.p)+b.n+'点加一个组会');
+        } else {
+          chips.push('加一个半小时复习');
+        }
+        chips.push('耽误了40分钟，后面都顺延');
+        replan = true;
       } else {
-        chips.push('加一个半小时复习');
+        chips.push('下午三点到五点加一个组会');
       }
-      chips.push('耽误了40分钟，后面都顺延');
+      chips.push('今晚不去散步了，改成复习一小时');
+    } else if(state.view==='template'){
+      $('aiInput').placeholder = '一句话改基础模板，比如「以后每天早上加20分钟冥想」';
+      chips.push('以后每天早上加20分钟冥想', '英语听力挪到晚上七点', '模板里删掉散步');
     } else {
-      chips.push('下午三点到五点加一个组会');
+      $('aiInput').placeholder = '一句话建项目、记进度，比如「今天看了3集编程课」';
+      chips.push('12月20号前学完吴恩达机器学习课，一共113集', '今天看了3集编程课', '小说读到150页');
     }
-    chips.push('今晚不去散步了，改成复习一小时');
     var wrap = $('aiChips');
     wrap.innerHTML = '';
     chips.forEach(function(t){
@@ -2434,100 +2705,128 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       c.addEventListener('click', function(){ $('aiInput').value = t; runAi(t); });
       wrap.appendChild(c);
     });
-    if(isViewingToday()){
+    if(replan){
       var r = document.createElement('button');
       r.type = 'button'; r.className = 'ai-chip strong'; r.textContent = '⟳ 没做完的往后排';
-      r.addEventListener('click', function(){ runAi('把今天没做完的往后排', [{op:'replan'}]); });
+      r.addEventListener('click', function(){ runAi('把今天没做完的往后排', [{op:'replan'}], 'rule'); });
       wrap.appendChild(r);
     }
   }
 
-  function runAi(text, presetOps){
+  function runAi(text, presetOps, presetSource){
     text = (text||'').trim();
     if(!text){ aiStatus('先说一句或者打几个字，比如「下午加两小时工作」。', true); return; }
-    if(state.view!=='day') return;
-    var key = dateKey(state.selectedDate);
-    var list = getDayActivities(key);
-    var today = isViewingToday();
+    // schedule changes made from the template or projects page go to today
+    var dayKey = state.view==='day' ? dateKey(state.selectedDate) : todayKey();
+    var dayList = getDayActivities(dayKey);
+    var today = dayKey===todayKey();
     var ctx = {isToday:today, now:nowMin(), from: today ? ceil5(nowMin()) : 0};
+    var env = {day:dayList, tpl:state.template, ctx:ctx, view:state.view, dayKey:dayKey,
+               defaultScope: state.view==='template' ? 'template' : 'day'};
 
     var t0 = Date.now();
     function finish(ops, reply, source){
       $('aiSend').disabled = false;
-      track('ai_request', {text:text, source:source, n_ops:ops.length, ops:ops.slice(0,10), reply:reply||'', latency_ms:Date.now()-t0});
+      track('ai_request', {text:text, source:source, view:state.view, n_ops:ops.length, ops:ops.slice(0,10), reply:reply||'', latency_ms:Date.now()-t0});
       if(!ops.length){
         track('ai_no_ops', {text:text, source:source, reply:reply||''});
-        aiStatus((reply ? reply+' ' : '')+'没找到要改的内容。可以试试「下午三点到五点加个会」「今晚不去散步了」「耽误了半小时」。', true);
+        aiStatus((reply ? reply+' ' : '')+'没找到要改的内容。可以试试「下午三点到五点加个会」「今天看了3集编程课」「以后每天早上加20分钟冥想」。', true);
         return;
       }
-      var plan = buildPlan(list, ops, ctx);
-      if(!plan.changes.length && !plan.warnings.length){
-        aiStatus('这样改不需要动任何安排。'); return;
-      }
+      var isProj = function(o){ return /^project_/.test(o.op); };
+      var dayOps = ops.filter(function(o){ return !isProj(o) && o.scope!=='template'; });
+      var tplOps = ops.filter(function(o){ return !isProj(o) && o.scope==='template'; });
+      var projOps = ops.filter(isProj);
+      var dayPlan = dayOps.length ? buildPlan(dayList, dayOps, ctx) : null;
+      var tplPlan = tplOps.length ? buildPlan(state.template, tplOps, {isToday:false, now:0, from:0}) : null;
+      var projPlan = projOps.length ? buildProjectPlan(projOps) : null;
+      var changes = [], warnings = [];
+      [[dayPlan,'day'], [tplPlan,'template'], [projPlan,'project']].forEach(function(pair){
+        if(!pair[0]) return;
+        pair[0].changes.forEach(function(c){ c.scope = pair[1]; changes.push(c); });
+        warnings = warnings.concat(pair[0].warnings);
+      });
+      if(!changes.length && !warnings.length){ aiStatus('这样改不需要动任何安排。'); return; }
       aiStatus('');
-      pendingPlan = {key:key, before:list, plan:plan, planId:uid(), text:text, source:source};
+      pendingPlan = {planId:uid(), text:text, source:source, dayKey:dayKey,
+                     dayBefore:dayList, tplBefore:state.template, projBefore:state.projects,
+                     dayPlan:dayPlan, tplPlan:tplPlan, projPlan:projPlan, changes:changes, warnings:warnings};
       var kinds = {};
-      plan.changes.forEach(function(c){ kinds[c.type] = (kinds[c.type]||0)+1; });
-      track('plan_shown', {plan_id:pendingPlan.planId, text:text, source:source, n_changes:plan.changes.length, kinds:kinds, warnings:plan.warnings.length});
-      showPlan(text, reply, plan, source);
+      changes.forEach(function(c){ kinds[c.type] = (kinds[c.type]||0)+1; });
+      track('plan_shown', {plan_id:pendingPlan.planId, text:text, source:source, n_changes:changes.length, kinds:kinds, warnings:warnings.length,
+                           scopes:{day:!!dayPlan, template:!!tplPlan, project:!!projPlan}});
+      showPlan(text, reply, pendingPlan, source);
     }
 
-    if(presetOps){ finish(presetOps, '', 'rule'); return; }
+    if(presetOps){ finish(presetOps, '', presetSource || 'rule'); return; }
     $('aiSend').disabled = true;
     aiStatus('正在理解你的意思…');
     var local = function(note){
-      var r = localParse(text, list, ctx);
+      var r = localParse(text, env);
       finish(r.ops, r.reply, note || 'local');
     };
     if(!AI_ENDPOINT && !sampleAPI){ local(); return; }
-    callLLM(buildPrompt(text, list, ctx)).then(function(res){
-      var ops = validateOps(res.data, list);
+    callLLM(buildPrompt(text, env)).then(function(res){
+      var ops = validateOps(res.data, env);
+      var reply = res.data && typeof res.data.reply==='string' ? res.data.reply : '';
       if(!ops.length){
         // the model answered but found nothing to do: let the local rules have a go, and only call it
         // a fallback if they actually found something — otherwise it's the model's "didn't understand"
-        var r = localParse(text, list, ctx);
+        var r = localParse(text, env);
         if(r.ops.length) finish(r.ops, r.reply, 'local-fallback');
-        else finish([], res.data && typeof res.data.reply==='string' ? res.data.reply : '', res.source);
+        else finish([], reply, res.source);
         return;
       }
-      finish(ops, res.data && typeof res.data.reply==='string' ? res.data.reply : '', res.source);
+      finish(ops, reply, res.source);
     }).catch(function(){ local('local-fallback'); });
   }
 
-  function showPlan(text, reply, plan, source){
+  function showPlan(text, reply, p, source){
     $('planSaid').textContent = '你说：「'+text+'」';
     $('planReply').textContent = reply || '';
     $('planReply').hidden = !reply;
     var wrap = $('planList');
     wrap.innerHTML = '';
-    var labels = {add:'新增', move:'调整', shrink:'压缩', remove:'删除', drop:'移出今天'};
-    plan.changes.forEach(function(c){
+    var labels = {add:'新增', move:'调整', shrink:'压缩', remove:'删除', drop:'移出', 'proj-add':'新项目', 'proj-progress':'记进度', 'proj-update':'改目标'};
+    var tagClass = {'proj-add':'add', 'proj-progress':'move', 'proj-update':'shrink'};
+    var scopeName = {template:'基础模板', project:'学习项目', day: p.dayKey===todayKey() ? '今天' : shortDate(p.dayKey)};
+    var mixed = (p.dayPlan?1:0) + (p.tplPlan?1:0) + (p.projPlan?1:0) > 1;
+    p.changes.forEach(function(c){
       var row = document.createElement('div');
       row.className = 'plan-row';
-      var time = c.type==='add' ? rangeText(c.after[0], c.after[1])
-        : (c.after ? '<s>'+rangeText(c.before[0], c.before[1])+'</s> → '+rangeText(c.after[0], c.after[1]) : '<s>'+rangeText(c.before[0], c.before[1])+'</s>');
-      row.innerHTML = '<span class="plan-tag '+c.type+'"></span><div class="plan-body"><div class="plan-name"></div><div class="plan-time"></div><div class="plan-note"></div></div>';
+      row.innerHTML = '<span class="plan-tag '+(tagClass[c.type]||c.type)+'"></span><div class="plan-body"><div class="plan-name"><span class="pn"></span></div><div class="plan-time"></div><div class="plan-note"></div></div>';
       row.querySelector('.plan-tag').textContent = labels[c.type];
-      row.querySelector('.plan-name').textContent = c.name;
-      row.querySelector('.plan-time').innerHTML = time;
+      row.querySelector('.pn').textContent = c.name;
+      // say where a change lands whenever it isn't the page you're looking at
+      var here = {day:'day', template:'template', projects:'project'}[state.view];
+      if(mixed || c.scope!==here){
+        var sc = document.createElement('span'); sc.className = 'plan-scope'; sc.textContent = scopeName[c.scope];
+        row.querySelector('.plan-name').appendChild(sc);
+      }
+      if(c.time!=null) row.querySelector('.plan-time').textContent = c.time;
+      else row.querySelector('.plan-time').innerHTML = c.type==='add' ? rangeText(c.after[0], c.after[1])
+        : (c.after ? '<s>'+rangeText(c.before[0], c.before[1])+'</s> → '+rangeText(c.after[0], c.after[1]) : '<s>'+rangeText(c.before[0], c.before[1])+'</s>');
       row.querySelector('.plan-note').textContent = c.note || '';
       row.querySelector('.plan-note').hidden = !c.note;
       wrap.appendChild(row);
     });
-    $('planWarn').hidden = !plan.warnings.length;
-    $('planWarn').textContent = plan.warnings.join(' ');
+    $('planWarn').hidden = !p.warnings.length;
+    $('planWarn').textContent = p.warnings.join(' ');
     var src = {
       'DeepSeek':'由 DeepSeek 理解你的话', 'Claude':'由 Claude 理解你的话',
       'local':'由本地规则理解你的话（没有连接大模型）', 'local-fallback':'大模型暂时没连上，已改用本地规则理解',
-      'rule':'直接按规则重排'
+      'rule':'直接按规则重排', 'suggestion':'来自「发现了几件事」：根据你最近的修改统计得出'
     }[source] || '';
-    $('planSource').textContent = src+'；具体时间由固定规则安排：已开始、已完成的和睡觉时间不动；放不下时先压缩运动、护理，再压缩学习，最后才移出重要性低的。';
-    $('planApply').hidden = !plan.changes.length;
+    var rules = [];
+    if(p.dayPlan || p.tplPlan) rules.push('时间由固定规则安排：已开始、已完成的和睡觉时间不动；放不下时先压缩运动、护理，再压缩学习，最后才移出重要性低的');
+    if(p.projPlan) rules.push('每天目标由规则按「剩余量 ÷ 剩余天数」计算');
+    $('planSource').textContent = src+'；'+rules.join('；')+'。';
+    $('planApply').hidden = !p.changes.length;
     $('planOverlay').hidden = false;
   }
   function closePlan(){ $('planOverlay').hidden = true; pendingPlan = null; }
   function cancelPlan(){
-    if(pendingPlan) track('plan_cancelled', {plan_id:pendingPlan.planId, text:pendingPlan.text, source:pendingPlan.source, n_changes:pendingPlan.plan.changes.length});
+    if(pendingPlan) track('plan_cancelled', {plan_id:pendingPlan.planId, text:pendingPlan.text, source:pendingPlan.source, n_changes:pendingPlan.changes.length});
     closePlan();
   }
   // the plan applied most recently — a manual edit soon after it is a quiet sign the AI got something wrong
@@ -2543,24 +2842,152 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   $('planOverlay').addEventListener('click', function(e){ if(e.target===$('planOverlay')) cancelPlan(); });
   $('planApply').addEventListener('click', function(){
     if(!pendingPlan) return;
-    var p = pendingPlan, before = p.before;
-    track('plan_applied', {plan_id:p.planId, text:p.text, source:p.source, n_changes:p.plan.changes.length});
-    lastApplied = {planId:p.planId, text:p.text, source:p.source, key:p.key, at:Date.now(),
-                   ids:p.plan.changes.map(function(c){ return c.id; }).filter(Boolean)};
-    state.days[p.key] = p.plan.list;
-    saveDays(state.days);
+    var p = pendingPlan;
+    track('plan_applied', {plan_id:p.planId, text:p.text, source:p.source, n_changes:p.changes.length});
+    if(p.dayPlan){
+      lastApplied = {planId:p.planId, text:p.text, source:p.source, key:p.dayKey, at:Date.now(),
+                     ids:p.dayPlan.changes.map(function(c){ return c.id; }).filter(Boolean)};
+      state.days[p.dayKey] = p.dayPlan.list; saveDays(state.days);
+    }
+    if(p.tplPlan){ state.template = p.tplPlan.list; saveTemplate(state.template); }
+    if(p.projPlan){ state.projects = p.projPlan.projects; saveProjects(state.projects); }
     aiFlashIds = {};
-    p.plan.changes.forEach(function(c){ if(c.id) aiFlashIds[c.id] = true; });
+    p.changes.forEach(function(c){ if(c.id) aiFlashIds[c.id] = true; });
     closePlan();
     $('aiInput').value = '';
     render();
     setTimeout(function(){ aiFlashIds = {}; }, 2500);
     var appliedAt = Date.now();
-    showToast('已调整 '+p.plan.changes.length+' 项', {label:'撤销', fn:function(){
+    var where = [p.dayPlan ? '日程' : '', p.tplPlan ? '基础模板' : '', p.projPlan ? '学习项目' : ''].filter(Boolean).join('、');
+    showToast('已更新'+where+' · '+p.changes.length+' 项', {label:'撤销', fn:function(){
       track('plan_undone', {plan_id:p.planId, text:p.text, source:p.source, seconds_after:Math.round((Date.now()-appliedAt)/1000)});
       if(lastApplied && lastApplied.planId===p.planId) lastApplied = null;
-      state.days[p.key] = before; saveDays(state.days); aiFlashIds = {}; render();
+      if(p.dayPlan){ state.days[p.dayKey] = p.dayBefore; saveDays(state.days); }
+      if(p.tplPlan){ state.template = p.tplBefore; saveTemplate(state.template); }
+      if(p.projPlan){ state.projects = p.projBefore; saveProjects(state.projects); }
+      aiFlashIds = {}; render();
     }});
+  });
+
+  // ----- 发现了几件事：落后提醒 + 根据修改历史建议更新模板（都是规则统计，用户一键决定） -----
+  var KEY_DISMISSED = 'zuoxibu_dismissed_v1';
+  function loadDismissed(){ try{ return JSON.parse(localStorage.getItem(KEY_DISMISSED)) || {}; }catch(e){ return {}; } }
+  function dismissSuggestion(id){
+    var d = loadDismissed(); d[id] = Date.now();
+    try{ localStorage.setItem(KEY_DISMISSED, JSON.stringify(d)); }catch(e){}
+  }
+  // habits that show up again and again in the last two weeks of edited days but not in the template
+  function templateSuggestions(){
+    var keys = Object.keys(state.days).filter(function(k){ return k < todayKey() && k >= dateKeyIn(-14); }).sort();
+    var n = keys.length;
+    if(n < 4) return [];
+    var need = Math.max(3, Math.ceil(n*0.5)), out = [];
+    state.template.forEach(function(t){
+      if(t.cat==='sleep' || t.kind==='point') return;
+      var gone = 0, starts = [];
+      keys.forEach(function(k){
+        var m = state.days[k].filter(function(a){ return a.name===t.name; })[0];
+        if(!m) gone++;
+        else if(Math.abs(toMin(m.start)-toMin(t.start)) >= 30) starts.push(toMin(m.start));
+      });
+      if(gone >= need){
+        out.push({id:'tpl:remove:'+t.name, count:gone,
+          text:'最近 '+n+' 天里，有 <b>'+gone+' 天</b>你都删掉了「'+esc(t.name)+'」。',
+          why:'模板里它还每天排在 '+t.start+'–'+t.end+'。',
+          label:'从模板里删掉', say:'模板里删掉'+t.name, ops:[{op:'remove', id:t.id, scope:'template'}]});
+      } else if(starts.length >= need){
+        starts.sort(function(a,b){ return a-b; });
+        if(starts[starts.length-1]-starts[0] <= 60){
+          var med = round5(starts[Math.floor(starts.length/2)]);
+          out.push({id:'tpl:move:'+t.name+':'+med, count:starts.length,
+            text:'最近 '+n+' 天里，有 <b>'+starts.length+' 天</b>你把「'+esc(t.name)+'」挪到了 '+toHHMM(med)+' 左右。',
+            why:'模板里它在 '+t.start+'。',
+            label:'模板里也改到 '+toHHMM(med), say:'模板里把'+t.name+'挪到'+toHHMM(med), ops:[{op:'move', id:t.id, start:toHHMM(med), scope:'template'}]});
+        }
+      }
+    });
+    var tplNames = {}; state.template.forEach(function(a){ tplNames[a.name] = true; });
+    var added = {};
+    keys.forEach(function(k){
+      var seen = {};
+      state.days[k].forEach(function(a){
+        if(a.cat==='sleep' || a.kind==='point' || tplNames[a.name] || seen[a.name]) return;
+        seen[a.name] = true;
+        (added[a.name] = added[a.name] || []).push(a);
+      });
+    });
+    Object.keys(added).forEach(function(name){
+      var arr = added[name];
+      if(arr.length < need) return;
+      var ss = arr.map(function(a){ return toMin(a.start); }).sort(function(a,b){ return a-b; });
+      var ds = arr.map(function(a){ return toMin(a.end)-toMin(a.start); }).sort(function(a,b){ return a-b; });
+      var s = round5(ss[Math.floor(ss.length/2)]), d = Math.max(5, round5(ds[Math.floor(ds.length/2)]));
+      out.push({id:'tpl:add:'+name, count:arr.length,
+        text:'最近 '+n+' 天里，有 <b>'+arr.length+' 天</b>你都临时加了「'+esc(name)+'」（'+toHHMM(s)+' 左右，'+d+' 分钟）。',
+        why:'模板里还没有它，每天都要手动加。',
+        label:'加进模板', say:'模板里加上'+name, ops:[{op:'add', name:name, cat:arr[0].cat, start:toHHMM(s), end:toHHMM(Math.min(s+d,1440)), scope:'template'}]});
+    });
+    return out.sort(function(a,b){ return b.count-a.count; });
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function applyProjectPatch(p, patch, msg, sugId){
+    var before = state.projects;
+    state.projects = state.projects.map(function(q){ return q.id===p.id ? withProject(q, patch) : q; });
+    saveProjects(state.projects);
+    track('suggestion_accepted', {id:sugId, kind:'behind', choice:Object.keys(patch)[0]});
+    render();
+    showToast(msg, {label:'撤销', fn:function(){ state.projects = before; saveProjects(before); render(); }});
+  }
+  function renderSuggestions(){
+    var items = [], dismissed = loadDismissed();
+    state.projects.forEach(function(p){
+      var b = behindInfo(p);
+      if(!b) return;
+      var u = p.unit||'个';
+      items.push({id:'behind:'+p.id+':'+p.dailyTarget+':'+p.deadline, warn:true,
+        text:'「'+esc(p.name)+'」照每天 '+p.dailyTarget+' '+esc(u)+'，到 '+shortDate(p.deadline)+' 截止还会<b>差 '+b.gap+' '+esc(u)+'</b>。',
+        why:'还剩 '+b.remaining+' '+u+'、'+b.days+' 天，平均每天要 '+b.need+' '+u+'。',
+        actions:[
+          {label:'每天提到 '+b.newDaily+' '+u, primary:true, fn:function(id){ applyProjectPatch(p, {dailyTarget:b.newDaily}, '「'+p.name+'」每天目标改成 '+b.newDaily+' '+u, id); }},
+          {label:'截止推迟到 '+shortDate(b.newDeadline)+'（+'+b.delay+' 天）', fn:function(id){ applyProjectPatch(p, {deadline:b.newDeadline}, '「'+p.name+'」截止日改到 '+shortDate(b.newDeadline), id); }}
+        ]});
+    });
+    templateSuggestions().forEach(function(s){
+      items.push({id:s.id, text:s.text, why:s.why+'（统计自最近两周的日程）',
+        actions:[{label:s.label, primary:true, fn:function(id){
+          track('suggestion_accepted', {id:id, kind:'template'});
+          $('aiInput').value = '';
+          runAi(s.say, s.ops, 'suggestion');
+        }}]});
+    });
+    items = items.filter(function(it){ return !dismissed[it.id] || Date.now()-dismissed[it.id] > 7*86400000; }).slice(0, 3);
+    var box = $('suggestBox'), list = $('suggestList');
+    box.hidden = !items.length;
+    list.innerHTML = '';
+    items.forEach(function(it){
+      var el = document.createElement('div');
+      el.className = 'sg-item'+(it.warn?' warn':'');
+      el.innerHTML = '<div class="sg-text">'+it.text+'</div><div class="sg-why"></div><div class="sg-actions"></div>';
+      el.querySelector('.sg-why').textContent = it.why;
+      var acts = el.querySelector('.sg-actions');
+      it.actions.concat([{label:'忽略', ignore:true}]).forEach(function(a){
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = a.primary ? 'primary-btn' : 'ghost-btn'; b.textContent = a.label;
+        b.addEventListener('click', function(){
+          if(a.ignore){ dismissSuggestion(it.id); track('suggestion_dismissed', {id:it.id}); render(); return; }
+          a.fn(it.id);
+        });
+        acts.appendChild(b);
+      });
+      list.appendChild(el);
+    });
+  }
+  $('resetSampleBtn').addEventListener('click', function(){
+    if(!confirm('恢复示例数据会清除这个浏览器里作息簿的所有数据（模板、每天的日程、学习项目），确定吗？')) return;
+    ['zuoxibu_template_v1','zuoxibu_days_v1','zuoxibu_projects_v1','zuoxibu_pinned_cats_v1',KEY_DISMISSED].forEach(function(k){
+      try{ localStorage.removeItem(k); }catch(e){}
+    });
+    location.reload();
   });
   $('aiSend').addEventListener('click', function(){ runAi($('aiInput').value); });
   $('aiInput').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); runAi($('aiInput').value); } });

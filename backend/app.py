@@ -38,6 +38,8 @@ EVENT_TYPES = {
     "edit_after_ai",   # 应用后 5 分钟内又手动改了当天日程（隐性的理解错误）
     "activity_toggled",# 打勾 / 取消打勾
     "day_snapshot",    # 当天日程的最新状态，用来算完成率
+    "suggestion_accepted",   # 「发现了几件事」里的建议被采纳（落后调整 / 更新模板）
+    "suggestion_dismissed",  # 建议被忽略
 }
 MAX_BODY = 64 * 1024
 MAX_EVENTS = 50
@@ -208,6 +210,9 @@ def stats(days: int = 30, include_sim: bool = False):
         "llm_share": ratio(llm, len(requests)),
         "fallback_rate": ratio(src_count.get("local-fallback", 0), len(requests)),
         "latency_p50_ms": p50,
+        # 系统主动发现的建议（落后提醒、更新模板），用户愿意采纳的比例
+        "suggestion_accept_rate": ratio(n("suggestion_accepted"), n("suggestion_accepted") + n("suggestion_dismissed")),
+        "suggestions_acted": n("suggestion_accepted") + n("suggestion_dismissed"),
     }
 
     # 每天的趋势

@@ -166,7 +166,8 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-faint);line-height:1.7;}
       {label:'没听懂的比例', value:pct(k.not_understood_rate), hint:'没理解出任何可执行的指令'},
       {label:'大模型理解占比', value:pct(k.llm_share), hint:'回退到本地规则：'+pct(k.fallback_rate)},
       {label:'AI 请求数', value:k.requests, hint:k.users+' 位匿名用户'},
-      {label:'理解耗时（中位数）', value:k.latency_p50_ms==null ? '—' : (k.latency_p50_ms/1000).toFixed(1)+' 秒', hint:'从发送到出方案'}
+      {label:'理解耗时（中位数）', value:k.latency_p50_ms==null ? '—' : (k.latency_p50_ms/1000).toFixed(1)+' 秒', hint:'从发送到出方案'},
+      {label:'主动建议采纳率', value:pct(k.suggestion_accept_rate), hint:'落后提醒、更新模板：'+k.suggestions_acted+' 次被处理'}
     ];
     $('kpis').innerHTML = items.map(function(it){
       return '<div class="kpi'+(it.hero?' hero':'')+'"><div class="k-label">'+esc(it.label)+'</div><div class="k-value">'+esc(it.value)+'</div><div class="k-hint">'+esc(it.hint)+'</div></div>';
