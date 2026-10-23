@@ -138,6 +138,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .proj-meta .proj-countdown{color:var(--cat-learn);font-weight:600;}
 .proj-meta .proj-countdown.done{color:var(--accent);}
 .proj-update{display:flex;align-items:center;gap:8px;}
+.proj-meta .proj-from-schedule{color:var(--ink-faint);font-size:11.5px;}
+.link-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-soft);}
+.link-row select{flex:1;min-width:150px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:8px 6px;font-family:var(--font-body);font-size:13.5px;}
+.modal .link-row input[type=number]{width:72px;padding:7px 8px;font-family:var(--font-mono);font-size:13px;}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:120;background:var(--ink);color:var(--bg);font-size:13px;padding:9px 16px;border-radius:20px;box-shadow:var(--shadow);max-width:calc(100% - 32px);text-align:center;}
 .proj-update input[type=number]{width:84px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:7px 9px;font-family:var(--font-mono);font-size:13px;}
 .proj-empty{text-align:center;color:var(--ink-faint);font-size:13px;padding:40px 0;}
 
@@ -372,6 +377,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   <button class="fab" id="addBtn" title="添加活动">+</button>
 </div>
 
+<div class="toast" id="toast" role="status" hidden></div>
+
 <div class="celebrate-overlay" id="celebrateOverlay" hidden>
   <canvas id="fireworksCanvas"></canvas>
   <div class="celebrate-message" id="celebrateMessage"></div>
@@ -421,6 +428,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
     <label>所属大类（可选）</label>
     <input type="text" id="fGroup" maxlength="20" placeholder="比如把「背单词」和「英语听力」都填成「英语」，就会合并统计、颜色也会一致">
+
+    <label>关联学习项目（可选）</label>
+    <div class="link-row">
+      <select id="fProject"></select>
+      <span id="fAmountWrap" hidden>完成一次推进 <input type="number" id="fAmount" min="0" step="0.5"> <span id="fAmountUnit"></span></span>
+    </div>
+    <div class="subs-hint" id="fProjectHint">打勾完成后，进度会自动记到这个项目上；取消打勾会自动扣回。</div>
 
     <div class="subs-section" id="subsSection">
       <label>细分安排（可选）</label>
@@ -570,6 +584,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     // 背单词 and 英语听力 are both really "learning English" — group them so
     // the daily summary counts them as one item and they share a color
     if(a.name==='背单词' || a.name==='英语听力'){ a.group='英语'; }
+    // link a few blocks to the sample learning projects, so ticking them moves progress
+    if(a.name==='背单词'){ a.projectId='demo-words'; a.amount=50; }
+    if(a.name==='学编程'){ a.projectId='demo-coding'; a.amount=1; }
+    if(a.name==='读书'){ a.projectId='demo-book'; a.amount=20; }
   });
 
   function uid(){ return 'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -577,6 +595,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var kind = a.kind==='point' ? 'point' : 'range';
     return {
       id:a.id||uid(), name:a.name, cat:a.cat, kind:kind, group:a.group||'',
+      projectId:a.projectId||'', amount:(+a.amount>0 ? +a.amount : 0),
       start:a.start, end: kind==='point' ? a.start : a.end,
       done: !!a.done,
       subs: kind==='point' ? [] : (a.subs||[]).map(function(s){ return {id:s.id||uid(), name:s.name, start:s.start, end:s.end, done:!!s.done}; })
@@ -635,9 +654,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     }catch(e){}
     // fictional sample projects so a first-time visitor sees the progress view filled in
     return [
-      {id:uid(), name:'编程入门视频课', category:'学编程', total:30, unit:'集', current:8, dailyTarget:1},
-      {id:uid(), name:'一本小说', category:'读书', total:320, unit:'页', current:96, dailyTarget:20},
-      {id:uid(), name:'核心词汇', category:'英语', total:1500, unit:'个', current:420, dailyTarget:50}
+      {id:'demo-coding', name:'编程入门视频课', category:'学编程', total:30, unit:'集', current:8, dailyTarget:1},
+      {id:'demo-book', name:'一本小说', category:'读书', total:320, unit:'页', current:96, dailyTarget:20},
+      {id:'demo-words', name:'核心词汇', category:'英语', total:1500, unit:'个', current:420, dailyTarget:50}
     ];
   }
   function saveProjects(list){ localStorage.setItem(KEY_PROJECTS, JSON.stringify(list)); }
@@ -664,6 +683,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     return list.map(function(a){
       return {
         id:uid(), name:a.name, start:a.start, end:a.end, cat:a.cat, kind:a.kind||'range', group:a.group||'',
+        projectId:a.projectId||'', amount:a.amount||0,
         subs:(a.subs||[]).map(function(s){ return {id:uid(), name:s.name, start:s.start, end:s.end}; })
       };
     });
@@ -1364,36 +1384,80 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var scope = state.view==='day' ? 'day' : 'template';
     var key = dateKey(state.selectedDate);
     var list = (scope==='day' ? getDayActivities(key) : state.template).map(function(a){
-      return a.id===id ? {id:a.id, name:a.name, start:a.start, end:a.end, cat:a.cat, kind:a.kind||'range', group:a.group||'', subs:a.subs||[], done:!a.done} : a;
+      return a.id===id ? {id:a.id, name:a.name, start:a.start, end:a.end, cat:a.cat, kind:a.kind||'range', group:a.group||'', projectId:a.projectId||'', amount:a.amount||0, subs:a.subs||[], done:!a.done} : a;
     });
+    var before = isComplete(findById(scope==='day' ? getDayActivities(key) : state.template, id));
     if(scope==='day'){ state.days[key] = list; saveDays(state.days); }
     else { state.template = list; saveTemplate(list); }
+    if(scope==='day') announceProgress(findById(list, id), before);
     render();
+  }
+
+  // ---------- activity → learning project progress ----------
+  // a day's activity linked to a project counts toward it once it's fully done:
+  // its own checkbox, or every one of its sub-items ticked. progress is derived
+  // from the day records rather than stored, so un-ticking takes it back out.
+  function findById(list, id){ return list.filter(function(a){ return a.id===id; })[0]; }
+  function isComplete(a){
+    if(!a) return false;
+    if(a.done) return true;
+    return !!(a.subs && a.subs.length && a.subs.every(function(s){ return s.done; }));
+  }
+  function credited(projectId){
+    var sum = 0;
+    Object.keys(state.days).forEach(function(k){
+      state.days[k].forEach(function(a){
+        if(a.projectId===projectId && a.amount>0 && isComplete(a)) sum += a.amount;
+      });
+    });
+    return Math.round(sum*100)/100;
+  }
+  function progressOf(p){ return Math.round((p.current + credited(p.id))*100)/100; }
+  function projectById(id){ return state.projects.filter(function(p){ return p.id===id; })[0]; }
+  var toastTimer = null;
+  function showToast(msg){
+    var t = $('toast');
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.hidden = true; }, 2800);
+  }
+  function announceProgress(a, wasComplete){
+    if(!a || !a.projectId || !(a.amount>0)) return;
+    var now = isComplete(a);
+    if(now===wasComplete) return;
+    var p = projectById(a.projectId);
+    if(!p) return;
+    var unit = p.unit||'个';
+    showToast(p.name+' '+(now?'+':'−')+a.amount+' '+unit+' · 现在 '+progressOf(p)+'/'+p.total+' '+unit);
   }
 
   function toggleSubDone(activityId, subId){
     var scope = state.view==='day' ? 'day' : 'template';
     var key = dateKey(state.selectedDate);
+    var before = isComplete(findById(scope==='day' ? getDayActivities(key) : state.template, activityId));
     var list = (scope==='day' ? getDayActivities(key) : state.template).map(function(a){
       if(a.id!==activityId) return a;
       var subs = (a.subs||[]).map(function(s){
         return s.id===subId ? {id:s.id, name:s.name, start:s.start, end:s.end, done:!s.done} : s;
       });
-      return {id:a.id, name:a.name, start:a.start, end:a.end, cat:a.cat, kind:a.kind||'range', group:a.group||'', done:a.done, subs:subs};
+      return {id:a.id, name:a.name, start:a.start, end:a.end, cat:a.cat, kind:a.kind||'range', group:a.group||'', projectId:a.projectId||'', amount:a.amount||0, done:a.done, subs:subs};
     });
     if(scope==='day'){ state.days[key] = list; saveDays(state.days); }
     else { state.template = list; saveTemplate(list); }
+    if(scope==='day') announceProgress(findById(list, activityId), before);
     render();
   }
 
   // ---------- learning projects ----------
   function buildProjectCard(p){
-    var pct = p.total>0 ? Math.min(100, p.current/p.total*100) : 0;
-    var remaining = Math.max(p.total-p.current, 0);
+    var cur = progressOf(p), fromSchedule = credited(p.id);
+    var pct = p.total>0 ? Math.min(100, cur/p.total*100) : 0;
+    var remaining = Math.max(p.total-cur, 0);
     var card = document.createElement('div');
     card.className = 'proj-card';
     var countdownHtml;
-    if(p.current>=p.total){
+    if(cur>=p.total){
       countdownHtml = '<span class="proj-countdown done">🎉 已完成</span>';
     } else if(p.dailyTarget>0){
       var days = Math.ceil(remaining/p.dailyTarget);
@@ -1415,9 +1479,15 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       '</div>';
     card.querySelector('.proj-name').textContent = p.name;
     card.querySelector('.proj-bar-fill').style.width = pct+'%';
-    card.querySelector('.proj-count').textContent = p.current+'/'+p.total+' '+(p.unit||'个');
+    card.querySelector('.proj-count').textContent = cur+'/'+p.total+' '+(p.unit||'个');
     card.querySelector('.proj-daily').textContent = p.dailyTarget>0 ? ('每天目标 '+p.dailyTarget+' '+(p.unit||'个')) : '';
-    card.querySelector('.proj-current-input').value = p.current;
+    if(fromSchedule>0){
+      var fs = document.createElement('span');
+      fs.className = 'proj-from-schedule';
+      fs.textContent = '其中 '+fromSchedule+' '+(p.unit||'个')+' 来自日程打勾';
+      card.querySelector('.proj-meta').appendChild(fs);
+    }
+    card.querySelector('.proj-current-input').value = cur;
     card.querySelector('.proj-edit-btn').addEventListener('click', function(){ openProjectEdit(p.id); });
     card.querySelector('.proj-save-btn').addEventListener('click', function(){
       var input = card.querySelector('.proj-current-input');
@@ -1500,9 +1570,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       wrap.appendChild(hint);
     }
   }
+  // the number you type is the total you see; store only the part that
+  // didn't come from ticked activities, so the two never double-count
   function updateProjectProgress(id, newCurrent){
+    var base = Math.round((newCurrent - credited(id))*100)/100;
     state.projects = state.projects.map(function(p){
-      return p.id===id ? {id:p.id, name:p.name, category:p.category, total:p.total, unit:p.unit, dailyTarget:p.dailyTarget, current:newCurrent} : p;
+      return p.id===id ? {id:p.id, name:p.name, category:p.category, total:p.total, unit:p.unit, dailyTarget:p.dailyTarget, current:base} : p;
     });
     saveProjects(state.projects);
     renderProjects();
@@ -1555,7 +1628,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('pjCategory').value = p.category||'';
     $('pjTotal').value = p.total;
     $('pjUnit').value = p.unit||'';
-    $('pjCurrent').value = p.current;
+    $('pjCurrent').value = progressOf(p);
     $('pjDaily').value = p.dailyTarget;
     $('pjDeleteBtn').hidden = false;
     $('projModalWarning').hidden = true;
@@ -1578,6 +1651,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     if(isNaN(total) || total<=0){ projWarn('总量要是个大于0的数字。'); return; }
     if(isNaN(current) || current<0){ current = 0; }
     if(isNaN(daily) || daily<0){ daily = 0; }
+    if(state.editingProjectId){ current = Math.round((current - credited(state.editingProjectId))*100)/100; }
     var obj = {id: state.editingProjectId || uid(), name:name, category:category, total:total, unit:unit, current:current, dailyTarget:daily};
     if(state.editingProjectId){
       state.projects = state.projects.map(function(p){ return p.id===state.editingProjectId ? obj : p; });
@@ -1602,6 +1676,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('modalTitle').textContent = '添加活动';
     $('fName').value='';
     $('fGroup').value='';
+    fillProjectSelect('', 0);
     updateKindUI('range');
     populateSelects();
     var list = currentList();
@@ -1629,6 +1704,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('modalTitle').textContent = '编辑活动';
     $('fName').value = a.name;
     $('fGroup').value = a.group||'';
+    fillProjectSelect(a.projectId||'', a.amount||0);
     updateKindUI(a.kind||'range');
     populateSelects();
     setTimeSelects(toMin(a.start), a.kind==='point' ? toMin(a.start)+15 : toMin(a.end));
@@ -1641,6 +1717,35 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('modalOverlay').hidden = false;
     $('fName').focus();
   }
+  // the "关联学习项目" picker in the activity modal
+  function fillProjectSelect(selectedId, amount){
+    var sel = $('fProject');
+    sel.innerHTML = '';
+    var none = document.createElement('option');
+    none.value = ''; none.textContent = state.projects.length ? '不关联' : '还没有学习项目';
+    sel.appendChild(none);
+    state.projects.forEach(function(p){
+      var o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name + (p.category ? '（'+p.category+'）' : '');
+      sel.appendChild(o);
+    });
+    sel.value = projectById(selectedId) ? selectedId : '';
+    $('fAmount').value = amount>0 ? amount : '';
+    updateProjectLinkUI();
+  }
+  function updateProjectLinkUI(){
+    var p = projectById($('fProject').value);
+    $('fAmountWrap').hidden = !p;
+    $('fProjectHint').hidden = !p;
+    if(p){
+      $('fAmountUnit').textContent = p.unit||'个';
+      if(!(parseFloat($('fAmount').value)>0)) $('fAmount').value = p.dailyTarget>0 ? p.dailyTarget : 1;
+    }
+  }
+  $('fProject').addEventListener('change', function(){
+    $('fAmount').value = '';
+    updateProjectLinkUI();
+  });
   function setTimeSelects(startMin, endMin){
     $('fStartH').value = Math.floor(startMin/60);
     $('fStartM').value = startMin%60 - (startMin%60)%5;
@@ -1671,13 +1776,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var endStr = kind==='point' ? startStr : toHHMM(t.end);
     var subsToSave = kind==='point' ? [] : tempSubs.slice();
     var groupVal = $('fGroup').value.trim();
+    var projectId = $('fProject').value;
+    var amount = projectId ? (parseFloat($('fAmount').value)||0) : 0;
+    if(projectId && amount<=0){ showWarning('关联了学习项目的话，每次推进的量要大于 0。'); return; }
     var list = currentList().slice();
     if(state.editing.mode==='add'){
-      list.push({id:uid(), name:name, start:startStr, end:endStr, cat:cat, kind:kind, subs:subsToSave, done:false, group:groupVal});
+      list.push({id:uid(), name:name, start:startStr, end:endStr, cat:cat, kind:kind, subs:subsToSave, done:false, group:groupVal, projectId:projectId, amount:amount});
     } else {
       list = list.map(function(a){
         if(a.id!==state.editing.id) return a;
-        return {id:a.id, name:name, start:startStr, end:endStr, cat:cat, kind:kind, subs:subsToSave, done:a.done, group:groupVal};
+        return {id:a.id, name:name, start:startStr, end:endStr, cat:cat, kind:kind, subs:subsToSave, done:a.done, group:groupVal, projectId:projectId, amount:amount};
       });
     }
     persistCurrentList(list);
