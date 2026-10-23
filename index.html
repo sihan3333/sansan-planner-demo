@@ -146,10 +146,15 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .proj-update input[type=number]{width:84px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:7px 9px;font-family:var(--font-mono);font-size:13px;}
 .proj-empty{text-align:center;color:var(--ink-faint);font-size:13px;padding:40px 0;}
 
-.celebrate-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(8,8,14,0);transition:background .6s ease;}
-.celebrate-overlay.dark{background:rgba(8,8,14,.93);}
+/* a glowing candle on cobalt paper, its wick throwing a sparkler of thin light */
+.celebrate-overlay{position:fixed;inset:0;z-index:200;cursor:pointer;opacity:0;transition:opacity .7s ease;
+  background:radial-gradient(ellipse 80% 70% at 50% 42%, #2F74D8 0%, #1C59BE 45%, #103F93 100%);}
+.celebrate-overlay.dark{opacity:1;}
 #fireworksCanvas{position:absolute;inset:0;width:100%;height:100%;}
-.celebrate-message{position:relative;z-index:2;font-family:var(--font-display);font-style:italic;font-weight:600;font-size:26px;color:#fff;text-align:center;padding:0 28px;opacity:0;transform:translateY(8px);transition:opacity .6s ease,transform .6s ease;text-shadow:0 2px 24px rgba(255,255,255,.35);}
+.celebrate-message{position:absolute;left:0;right:0;top:74%;z-index:2;margin:0 auto;max-width:420px;padding:0 24px;text-align:center;
+  font-family:var(--font-mono);font-size:16px;line-height:1.7;letter-spacing:.06em;color:#EAF2FF;
+  text-shadow:0 0 14px rgba(190,220,255,.55);opacity:0;transform:translateY(8px);transition:opacity .9s ease,transform .9s ease;}
+.celebrate-message small{display:block;margin-top:6px;font-size:11.5px;letter-spacing:.12em;color:rgba(234,242,255,.62);}
 .celebrate-message.show{opacity:1;transform:translateY(0);}
 .proj-quick-picks{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
 .proj-quick-picks .pqp-chip{border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);border-radius:20px;padding:4px 11px;font-size:11.5px;cursor:pointer;}
@@ -1003,20 +1008,21 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var overlay = $('celebrateOverlay');
     var msg = $('celebrateMessage');
     msg.classList.remove('show');
-    msg.textContent = '🎉 ' + phraseForDate(dateKeyStr);
+    msg.textContent = phraseForDate(dateKeyStr);
+    var sign = document.createElement('small');
+    sign.textContent = '— 三三作息簿 · ' + shortDate(dateKeyStr);
+    msg.appendChild(sign);
     overlay.hidden = false;
     var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    startFireworks(reduceMotion); // with reduced motion: one still frame, no animation
     requestAnimationFrame(function(){ overlay.classList.add('dark'); });
     if(reduceMotion){
       celebrateTimers.push(setTimeout(function(){ msg.classList.add('show'); }, 300));
-      celebrateTimers.push(setTimeout(endCelebration, 2600));
+      celebrateTimers.push(setTimeout(endCelebration, 3200));
       return;
     }
-    celebrateTimers.push(setTimeout(function(){
-      startFireworks();
-      msg.classList.add('show');
-    }, 550));
-    celebrateTimers.push(setTimeout(endCelebration, 6000));
+    celebrateTimers.push(setTimeout(function(){ msg.classList.add('show'); }, 900));
+    celebrateTimers.push(setTimeout(endCelebration, 6500));
   }
   function endCelebration(){
     var overlay = $('celebrateOverlay');
@@ -1032,72 +1038,174 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     endCelebration();
   });
 
-  var fwCtx=null, fwAnimId=null, fwParticles=[], fwLaunchTimer=null;
-  function startFireworks(){
+  // the celebration scene: a translucent candle wrapped in a music staff, its wick throwing
+  // a sparkler of thin pastel light, with four-point stars twinkling and ripples at its foot
+  var fwCtx=null, fwAnimId=null, fwSparks=[], fwStars=[], fwNotes=[], fwRipples=[], fwGrain=null, fwStart=0;
+  var SPARK_COLORS = ['#FFFFFF','#FFF4B0','#FFD3E6','#C9FFD9','#BDF1FF','#FFB8CC','#D9CCFF','#FFE8A3'];
+  function startFireworks(still){
     var canvas = $('fireworksCanvas');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    var dpr = Math.min(window.devicePixelRatio||1, 2);
+    var W = canvas.clientWidth || window.innerWidth, H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W*dpr; canvas.height = H*dpr;
     fwCtx = canvas.getContext('2d');
-    fwParticles = [];
-    function launchOne(){
-      var x = 30 + Math.random()*(canvas.width-60);
-      var targetY = canvas.height*0.08 + Math.random()*canvas.height*0.55;
-      var hue = Math.floor(Math.random()*360);
-      var big = Math.random()<0.35;
-      fwParticles.push({type:'rocket', x:x, y:canvas.height, vy:-(9+Math.random()*4), targetY:targetY, hue:hue, big:big});
+    fwCtx.setTransform(dpr,0,0,dpr,0,0);
+    var s = Math.max(0.55, Math.min(W, H*0.9)/760);
+    var g = {W:W, H:H, s:s, cx:W/2, rx:88*s, ry:18*s, top:H*0.40, h:150*s};
+    g.bottom = g.top + g.h;
+    $('celebrateMessage').style.top = (g.bottom + g.ry + 46*s)+'px';
+
+    // paper grain, drawn once
+    fwGrain = document.createElement('canvas');
+    fwGrain.width = W; fwGrain.height = H;
+    var gc = fwGrain.getContext('2d');
+    for(var i=0;i<W*H/90;i++){
+      gc.fillStyle = Math.random()<0.5 ? 'rgba(255,255,255,'+(0.02+Math.random()*0.05)+')' : 'rgba(0,20,60,'+(0.03+Math.random()*0.05)+')';
+      gc.fillRect(Math.random()*W, Math.random()*H, 1, 1);
     }
-    function explode(x,y,hue,big){
-      var count = (big ? 130 : 75) + Math.floor(Math.random()*35);
-      var spreadMax = big ? 9 : 6;
-      for(var i=0;i<count;i++){
-        var angle = Math.random()*Math.PI*2;
-        var speed = 0.8+Math.random()*spreadMax;
-        fwParticles.push({type:'spark', x:x, y:y, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed, life:1, decay:0.010+Math.random()*0.010, size:big?2.6:2, hue: hue + (Math.random()*46-23)});
-      }
+    fwStars = [];
+    for(var k=0;k<46;k++){
+      var x = Math.random()*W, y = Math.random()*H*0.82;
+      if(Math.abs(x-g.cx) < g.rx*1.2 && y > g.top-20*s && y < g.bottom+30*s) continue; // keep the candle clear
+      fwStars.push({x:x, y:y, r:(2.5+Math.random()*6)*s, ph:Math.random()*6.28, sp:1.2+Math.random()*2.4});
     }
-    function tick(){
-      fwCtx.clearRect(0,0,canvas.width,canvas.height);
-      fwCtx.globalCompositeOperation = 'lighter';
-      fwParticles = fwParticles.filter(function(p){
-        if(p.type==='rocket'){
-          p.y += p.vy;
-          fwCtx.beginPath();
-          fwCtx.fillStyle = 'hsl('+p.hue+',95%,70%)';
-          fwCtx.shadowColor = 'hsl('+p.hue+',95%,65%)';
-          fwCtx.shadowBlur = 12;
-          fwCtx.arc(p.x,p.y,p.big?3.5:2.5,0,Math.PI*2);
-          fwCtx.fill();
-          if(p.y<=p.targetY){ explode(p.x,p.y,p.hue,p.big); return false; }
-          return true;
-        }
-        p.x+=p.vx; p.y+=p.vy; p.vy+=0.045; p.vx*=0.985; p.life-=p.decay;
-        if(p.life<=0) return false;
-        fwCtx.beginPath();
-        fwCtx.fillStyle='hsla('+p.hue+',95%,68%,'+p.life+')';
-        fwCtx.shadowColor = 'hsla('+p.hue+',95%,68%,'+p.life+')';
-        fwCtx.shadowBlur = 8;
-        fwCtx.arc(p.x,p.y,p.size,0,Math.PI*2);
-        fwCtx.fill();
-        return true;
-      });
-      fwCtx.shadowBlur = 0;
-      fwCtx.globalCompositeOperation = 'source-over';
-      fwAnimId = requestAnimationFrame(tick);
+    fwSparks = []; fwNotes = []; fwRipples = [];
+    fwStart = performance.now();
+    if(still){
+      for(var n=0;n<70;n++){ spawnSpark(g); var sp = fwSparks[fwSparks.length-1]; sp.d = sp.len*(0.5+Math.random()*0.5); }
+      drawScene(g, 0.6);
+      return;
     }
-    tick();
-    launchOne(); launchOne();
-    setTimeout(launchOne, 120);
-    fwLaunchTimer = setInterval(function(){
-      launchOne();
-      if(Math.random()<0.5) setTimeout(launchOne, 130);
-    }, 260);
+    function frame(now){
+      var t = (now - fwStart)/1000;
+      // sparkler: strong burst at first, then a gentle steady fizz
+      var rate = t < 0.6 ? 9 : (t < 4.5 ? 4 : 1.5);
+      for(var r=0;r<rate;r++) if(Math.random()<0.85) spawnSpark(g);
+      if(Math.random() < 0.025) fwNotes.push({x:g.cx + (Math.random()<0.5?-1:1)*g.rx*0.9, y:g.top+g.h*0.5, vx:(Math.random()-0.5)*0.5, vy:-0.35-Math.random()*0.3, life:1, ch:['♪','♫','♩','♬'][Math.floor(Math.random()*4)]});
+      if(Math.random() < 0.02) fwRipples.push({x:g.cx + (Math.random()-0.5)*g.rx*3.2, y:g.bottom + g.ry + (14+Math.random()*26)*s, r:0, life:1});
+      drawScene(g, t);
+      fwAnimId = requestAnimationFrame(frame);
+    }
+    fwAnimId = requestAnimationFrame(frame);
+  }
+  function spawnSpark(g){
+    // mostly upward, a few sweeping sideways and down past the candle
+    var a = -Math.PI/2 + (Math.random()-0.5)*Math.PI*(Math.random()<0.75 ? 1.15 : 2.1);
+    fwSparks.push({a:a, d:0, v:(4+Math.random()*7)*g.s, len:(60+Math.random()*190)*g.s, life:1, decay:0.012+Math.random()*0.02,
+                   w:0.6+Math.random()*1.6, c:SPARK_COLORS[Math.floor(Math.random()*SPARK_COLORS.length)]});
+  }
+  function drawScene(g, t){
+    var c = fwCtx, s = g.s, cx = g.cx, wickY = g.top - 4*s;
+    c.clearRect(0,0,g.W,g.H);
+    c.drawImage(fwGrain, 0, 0);
+
+    // ripples where light drips into the water
+    fwRipples = fwRipples.filter(function(p){
+      p.r += 0.55*s; p.life -= 0.008;
+      if(p.life<=0) return false;
+      c.strokeStyle = 'rgba(220,235,255,'+(p.life*0.45)+')'; c.lineWidth = 1;
+      for(var k=0;k<2;k++){ c.beginPath(); c.ellipse(p.x, p.y, p.r*(1-k*0.35)+1, (p.r*(1-k*0.35)+1)*0.28, 0, 0, Math.PI*2); c.stroke(); }
+      return true;
+    });
+
+    // twinkling four-point stars
+    fwStars.forEach(function(st){
+      var a = 0.25 + 0.75*Math.abs(Math.sin(t*st.sp + st.ph));
+      drawStar(c, st.x, st.y, st.r*(0.7+0.3*a), a);
+    });
+
+    // the candle: soft outer glow, translucent body, bright top
+    var flick = 0.9 + 0.1*Math.sin(t*9) * Math.sin(t*3.7);
+    c.save();
+    var halo = c.createRadialGradient(cx, g.top+g.h*0.35, 0, cx, g.top+g.h*0.35, g.rx*2.6);
+    halo.addColorStop(0, 'rgba(225,240,255,'+(0.45*flick)+')'); halo.addColorStop(1, 'rgba(225,240,255,0)');
+    c.fillStyle = halo; c.fillRect(cx-g.rx*3, g.top-g.rx*2, g.rx*6, g.h+g.rx*4);
+    c.beginPath();
+    c.moveTo(cx-g.rx, g.top); c.lineTo(cx-g.rx, g.bottom);
+    c.ellipse(cx, g.bottom, g.rx, g.ry, 0, Math.PI, 0, true);
+    c.lineTo(cx+g.rx, g.top);
+    c.ellipse(cx, g.top, g.rx, g.ry, 0, 0, Math.PI, true);
+    c.closePath();
+    var body = c.createLinearGradient(0, g.top, 0, g.bottom+g.ry);
+    body.addColorStop(0, 'rgba(255,255,255,0.96)'); body.addColorStop(1, 'rgba(214,232,255,0.78)');
+    c.shadowColor = 'rgba(210,235,255,0.95)'; c.shadowBlur = 40*s;
+    c.fillStyle = body; c.fill();
+    c.shadowBlur = 0;
+    var side = c.createLinearGradient(cx-g.rx, 0, cx+g.rx, 0);
+    side.addColorStop(0, 'rgba(120,170,235,0.38)'); side.addColorStop(0.3, 'rgba(255,255,255,0)');
+    side.addColorStop(0.7, 'rgba(255,255,255,0)'); side.addColorStop(1, 'rgba(120,170,235,0.38)');
+    c.fillStyle = side; c.fill();
+    c.restore();
+    var topFace = c.createRadialGradient(cx, g.top, 0, cx, g.top, g.rx);
+    topFace.addColorStop(0, 'rgba(255,250,235,1)'); topFace.addColorStop(1, 'rgba(235,245,255,0.95)');
+    c.fillStyle = topFace;
+    c.beginPath(); c.ellipse(cx, g.top, g.rx, g.ry, 0, 0, Math.PI*2); c.fill();
+
+    // a music staff wrapped around the front, curving with the candle
+    var staffY = g.top + g.h*0.42, gap = 6.5*s;
+    var curve = function(x, base){ var u = (x-cx)/g.rx; return base + g.ry*0.85*Math.sqrt(Math.max(0, 1-u*u)) + (x-cx)*0.07; };
+    c.strokeStyle = 'rgba(38,78,160,0.5)'; c.lineWidth = Math.max(0.8, 0.9*s);
+    for(var l=0;l<5;l++){
+      c.beginPath();
+      for(var x=cx-g.rx*0.96; x<=cx+g.rx*0.96; x+=3){ var y = curve(x, staffY + l*gap); if(x===cx-g.rx*0.96) c.moveTo(x,y); else c.lineTo(x,y); }
+      c.stroke();
+    }
+    c.fillStyle = 'rgba(30,62,140,0.72)';
+    c.font = (15*s)+'px serif'; c.textAlign = 'center';
+    [['♪',-0.62,1.2],['♫',-0.28,3],['♩',0.05,0.6],['♬',0.36,2.4],['♪',0.66,1.6]].forEach(function(nt){
+      var x = cx + g.rx*nt[1]; c.fillText(nt[0], x, curve(x, staffY + nt[2]*gap) + 4*s);
+    });
+
+    // notes drifting away
+    fwNotes = fwNotes.filter(function(n){
+      n.x += n.vx; n.y += n.vy; n.life -= 0.006;
+      if(n.life<=0) return false;
+      c.fillStyle = 'rgba(235,244,255,'+(n.life*0.85)+')'; c.font = (16*s)+'px serif';
+      c.fillText(n.ch, n.x, n.y);
+      return true;
+    });
+
+    // sparkler streaks from the wick
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round';
+    fwSparks = fwSparks.filter(function(p){
+      p.d = Math.min(p.len, p.d + p.v); p.v *= 0.97;
+      if(p.d >= p.len*0.6) p.life -= p.decay;
+      if(p.life <= 0) return false;
+      var hx = cx + Math.cos(p.a)*p.d, hy = wickY + Math.sin(p.a)*p.d;
+      var tl = p.d*0.42, tx = cx + Math.cos(p.a)*tl, ty = wickY + Math.sin(p.a)*tl;
+      var grad = c.createLinearGradient(tx, ty, hx, hy);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(1, hexA(p.c, p.life));
+      c.strokeStyle = grad; c.lineWidth = p.w*s;
+      c.beginPath(); c.moveTo(tx, ty); c.lineTo(hx, hy); c.stroke();
+      return true;
+    });
+    // the bright knot of light at the wick
+    var core = c.createRadialGradient(cx, wickY, 0, cx, wickY, 34*s*flick);
+    core.addColorStop(0, 'rgba(255,255,255,1)'); core.addColorStop(0.25, 'rgba(255,245,200,0.8)'); core.addColorStop(1, 'rgba(255,240,200,0)');
+    c.fillStyle = core; c.beginPath(); c.arc(cx, wickY, 34*s*flick, 0, Math.PI*2); c.fill();
+    c.restore();
+  }
+  function drawStar(c, x, y, r, a){
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.fillStyle = 'rgba(255,255,255,'+a+')';
+    c.beginPath();
+    c.moveTo(x, y-r); c.quadraticCurveTo(x, y, x+r, y); c.quadraticCurveTo(x, y, x, y+r);
+    c.quadraticCurveTo(x, y, x-r, y); c.quadraticCurveTo(x, y, x, y-r);
+    c.fill();
+    c.restore();
+  }
+  function hexA(hex, a){
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';
   }
   function stopFireworks(){
-    if(fwLaunchTimer){ clearInterval(fwLaunchTimer); fwLaunchTimer=null; }
     if(fwAnimId){ cancelAnimationFrame(fwAnimId); fwAnimId=null; }
     var canvas = $('fireworksCanvas');
     if(fwCtx) fwCtx.clearRect(0,0,canvas.width,canvas.height);
-    fwParticles=[];
+    fwSparks=[]; fwNotes=[]; fwRipples=[];
   }
 
   var lastNowY = null;
