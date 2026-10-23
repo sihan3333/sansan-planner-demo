@@ -2148,11 +2148,19 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
           else { patch.deadline = o.deadline; parts.push('截止 '+(r.deadline ? shortDate(r.deadline)+' → ' : '')+shortDate(o.deadline)); }
         }
         if(o.dailyTarget>0){ patch.dailyTarget = o.dailyTarget; parts.push('每天 '+(r.dailyTarget||0)+' → '+o.dailyTarget+' '+(r.unit||'个')); }
+        if(o.total>0 && o.total!==r.total){ patch.total = o.total; parts.push('总量 '+r.total+' → '+o.total+' '+(r.unit||'个')); }
+        if(o.category && o.category!==r.category){ patch.category = o.category; parts.push('分类「'+(r.category||'未分类')+'」→「'+o.category+'」'); }
+        if(o.name && o.name!==r.name){ patch.name = o.name; parts.push('改名为「'+o.name+'」'); }
         if(!parts.length) return;
         projects[k] = withProject(r, patch);
-        var lag = behindInfo(projects[k]);
+        var lag = behindInfo(projects[k]), timing = o.deadline || o.dailyTarget || o.total;
         changes.push({type:'proj-update', scope:'project', name:r.name, time:parts.join('，'),
-          note: lag ? '按这个安排，到截止日还会差 '+lag.gap+' '+(r.unit||'个') : '按这个安排能按时完成'});
+          note: !timing ? '' : (lag ? '按这个安排，到截止日还会差 '+lag.gap+' '+(r.unit||'个') : (projects[k].deadline ? '按这个安排能按时完成' : ''))});
+      } else if(o.op==='project_remove'){
+        var x = indexOfProject(projects, o.id), gone = projects[x];
+        projects.splice(x, 1);
+        changes.push({type:'proj-remove', scope:'project', name:gone.name, time:progressOf(gone)+'/'+gone.total+' '+(gone.unit||'个'),
+          note:'整个项目会被删除；日程里关联它的活动打勾后不再计入进度'});
       }
     });
     return {projects:projects, changes:changes, warnings:warnings};
@@ -2285,6 +2293,22 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   // one clause about a learning project's progress / target / deadline
   function parseProjectClause(clause){
     var m, p, unit;
+    // "把吴恩达机器学习课放到学编程（这个分类）里" → change the project's category
+    if(!parseTimes(clause).length &&
+       (m = clause.match(/^(.*?)(?:放到|放进|归到|归入|移到|挪到|分到|划到|加到|改到)\s*[「“"]?(.+?)[」”"]?\s*(?:这个|那个)?\s*(?:分类|大类|类别)?\s*(?:当中|里面|里|中|下面|下)?\s*$/))){
+      var tgt = m[2].replace(/^(这个|那个)/, '');
+      var cats = getLearnCategoryNames().concat(state.projects.map(function(q){ return q.category; })).filter(Boolean);
+      var hit = cats.filter(function(c){ return c===tgt; })[0] || cats.filter(function(c){ return tgt.indexOf(c)>=0 || c.indexOf(tgt)>=0; })[0];
+      p = findProject(m[1]);
+      if(p && (hit || /分类|大类|类别/.test(clause))){
+        var cat = hit || tgt;
+        if(cat!==p.category) return {op:{op:'project_update', id:p.id, category:cat}, said:'把「'+p.name+'」放到「'+cat+'」分类'};
+      }
+    }
+    if(/删掉|删除|去掉|不要了/.test(clause) && /项目/.test(clause)){
+      p = findProject(clause.replace(/学习项目|项目/g, ''));
+      if(p) return {op:{op:'project_remove', id:p.id}, said:'删除学习项目「'+p.name+'」'};
+    }
     if((m = clause.match(new RegExp('(?:读到|看到|学到|背到|刷到|做到|练到)\\s*第?\\s*'+BIGNUM+'\\s*('+PUNITS+')?')))){
       unit = m[2]; p = findProject(clause, unit);
       if(p) return {op:{op:'project_progress', id:p.id, value:bigNum(m[1])}, said:'「'+p.name+'」进度记为 '+bigNum(m[1])+' '+(p.unit||'')};
@@ -2402,7 +2426,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
       '学习项目指令：\n'+
       '{"op":"project_add","name":"项目名","category":"大类(可省略)","total":数字,"unit":"集/章/页/个…","current":已完成量(可省略),"deadline":"YYYY-MM-DD"(没说就省略)}\n'+
       '{"op":"project_progress","id":"…","amount":本次增加的量}  或 {"op":"project_progress","id":"…","value":进度的新数值}\n'+
-      '{"op":"project_update","id":"…","deadline":"YYYY-MM-DD","dailyTarget":数字}  只写要改的字段\n\n'+
+      '{"op":"project_update","id":"…","deadline":"YYYY-MM-DD","dailyTarget":数字,"total":数字,"category":"大类","name":"新名称"}  只写要改的字段；"放到/归到某个分类"就是改 category，尽量用已有的大类名\n'+
+      '{"op":"project_remove","id":"…"}  删除整个学习项目\n\n'+
       '要求：\n'+
       '1. 只输出 JSON：{"reply":"一句话告诉用户你理解成了什么","ops":[...]}\n'+
       '2. id 只能从上面的列表里选；找不到对应的就不要编造\n'+
@@ -2457,8 +2482,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         if(!projIds[o.id]) return false;
         if(o.deadline && !ymd(o.deadline)) delete o.deadline;
         if(!pos(o.dailyTarget)) delete o.dailyTarget;
-        return !!(o.deadline || o.dailyTarget);
+        if(!pos(o.total)) delete o.total;
+        ['category','name'].forEach(function(k){
+          if(typeof o[k]==='string' && o[k].trim()) o[k] = o[k].trim().slice(0,20); else delete o[k];
+        });
+        return !!(o.deadline || o.dailyTarget || o.total || o.category || o.name);
       }
+      if(o.op==='project_remove') return !!projIds[o.id];
       // schedule ops: work out which list the id belongs to
       if(o.scope!=='template') delete o.scope;
       if(o.id){
@@ -2725,12 +2755,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
                defaultScope: state.view==='template' ? 'template' : 'day'};
 
     var t0 = Date.now();
-    function finish(ops, reply, source){
+    function finish(ops, reply, source, unsupported){
       $('aiSend').disabled = false;
       track('ai_request', {text:text, source:source, view:state.view, n_ops:ops.length, ops:ops.slice(0,10), reply:reply||'', latency_ms:Date.now()-t0});
       if(!ops.length){
-        track('ai_no_ops', {text:text, source:source, reply:reply||''});
-        aiStatus((reply ? reply+' ' : '')+'没找到要改的内容。可以试试「下午三点到五点加个会」「今天看了3集编程课」「以后每天早上加20分钟冥想」。', true);
+        track('ai_no_ops', {text:text, source:source, reply:reply||'', unsupported:!!unsupported});
+        // the model got the meaning but asked for something the rules can't do — say that, not "didn't understand"
+        if(unsupported) aiStatus('我理解为：'+(reply || '你想改一项设置')+'。不过这个操作现在还不支持，可以先在页面上手动改。', true);
+        else aiStatus((reply ? reply+' ' : '')+'没找到要改的内容。可以试试「下午三点到五点加个会」「今天看了3集编程课」「以后每天早上加20分钟冥想」。', true);
         return;
       }
       var isProj = function(o){ return /^project_/.test(o.op); };
@@ -2774,7 +2806,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         // a fallback if they actually found something — otherwise it's the model's "didn't understand"
         var r = localParse(text, env);
         if(r.ops.length) finish(r.ops, r.reply, 'local-fallback');
-        else finish([], reply, res.source);
+        else finish([], reply, res.source, !!(res.data && Array.isArray(res.data.ops) && res.data.ops.length));
         return;
       }
       finish(ops, reply, res.source);
@@ -2787,8 +2819,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     $('planReply').hidden = !reply;
     var wrap = $('planList');
     wrap.innerHTML = '';
-    var labels = {add:'新增', move:'调整', shrink:'压缩', remove:'删除', drop:'移出', 'proj-add':'新项目', 'proj-progress':'记进度', 'proj-update':'改目标'};
-    var tagClass = {'proj-add':'add', 'proj-progress':'move', 'proj-update':'shrink'};
+    var labels = {add:'新增', move:'调整', shrink:'压缩', remove:'删除', drop:'移出', 'proj-add':'新项目', 'proj-progress':'记进度', 'proj-update':'改项目', 'proj-remove':'删项目'};
+    var tagClass = {'proj-add':'add', 'proj-progress':'move', 'proj-update':'shrink', 'proj-remove':'remove'};
     var scopeName = {template:'基础模板', project:'学习项目', day: p.dayKey===todayKey() ? '今天' : shortDate(p.dayKey)};
     var mixed = (p.dayPlan?1:0) + (p.tplPlan?1:0) + (p.projPlan?1:0) > 1;
     p.changes.forEach(function(c){
