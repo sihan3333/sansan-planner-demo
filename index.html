@@ -2312,6 +2312,21 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   // bare 以后/往后 also mean "after"/"later" ("晚饭以后去健身", "没做完的往后排"), so they only count
   // when they open the sentence or lead into 每天/都/就
   var TEMPLATE_HINT = /(?:^|[，,。；;\s])以后|以后(?:每天|都|就)|往后(?:每天|都)|每天都|天天|从明天起|基础模板|模板/;
+
+  // 日期检查（规则层）：只能改「正在看的这一天」和基础模板。说法里提到别的日子时，
+  // 不管模型还是本地规则理解成了什么，都不执行日程修改，免得把「明天的刷题」删成今天或模板里的。
+  // 学习项目的操作不受影响：「12月20号前学完」「截止推迟到11月20号」说的是截止日，不是改那天的日程。
+  var OTHER_DAY = /明天|明早|明晚|明儿|后天|昨天|昨晚|昨儿|前天|上周|下周|这周|本周|上礼拜|下礼拜|这礼拜|周[一二三四五六日天末]|星期[一二三四五六日天]|礼拜[一二三四五六日天]|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{1,2}[.\/]\d{1,2}(?=\s*[日号前])/;
+  function mentionsOtherDay(text){
+    // "从明天起每天…" is about the usual day (the template), not about tomorrow
+    return OTHER_DAY.test(String(text).replace(/(?:从|自)\s*明天\s*(?:起|开始)/g, ''));
+  }
+  function guardOps(text, ops){
+    if(!mentionsOtherDay(text)) return {ops:ops, blocked:0};
+    var keep = ops.filter(function(o){ return /^project_/.test(o.op); });
+    return {ops:keep, blocked:ops.length - keep.length};
+  }
+  var OTHER_DAY_MSG = '暂时只能改今天的日程和基础模板，还不支持「明天」「周五」「昨天」这类其他日期的安排。';
   function withPeriod(p, h){
     if(/下午|傍晚|晚上|今晚|夜里/.test(p||'')){ if(h<12) h+=12; }
     else if(p==='中午'){ if(h<=3) h+=12; }
@@ -2883,7 +2898,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     var t0 = Date.now();
     function finish(ops, reply, source, unsupported){
       $('aiSend').disabled = false;
-      track('ai_request', {text:text, source:source, view:state.view, n_ops:ops.length, ops:ops.slice(0,10), reply:reply||'', latency_ms:Date.now()-t0});
+      var guard = guardOps(text, ops);
+      ops = guard.ops;
+      track('ai_request', {text:text, source:source, view:state.view, n_ops:ops.length, blocked_other_day:guard.blocked, ops:ops.slice(0,10), reply:reply||'', latency_ms:Date.now()-t0});
+      if(!ops.length && guard.blocked){
+        track('ai_no_ops', {text:text, source:source, reply:reply||'', unsupported:true, reason:'other_day'});
+        aiStatus(OTHER_DAY_MSG, true);
+        return;
+      }
       if(!ops.length){
         track('ai_no_ops', {text:text, source:source, reply:reply||'', unsupported:!!unsupported});
         // the model got the meaning but asked for something the rules can't do — say that, not "didn't understand"
@@ -2904,6 +2926,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         pair[0].changes.forEach(function(c){ c.scope = pair[1]; changes.push(c); });
         warnings = warnings.concat(pair[0].warnings);
       });
+      if(guard.blocked) warnings.push('提到其他日期的 '+guard.blocked+' 项日程修改没有执行：'+OTHER_DAY_MSG);
       if(!changes.length && !warnings.length){ aiStatus('这样改不需要动任何安排。'); return; }
       aiStatus('');
       pendingPlan = {planId:uid(), text:text, source:source, dayKey:dayKey,
@@ -3202,15 +3225,18 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         var env = {day:opt.day.map(normalizeActivity), tpl:state.template, ctx:ctx, view:opt.view || 'day',
                    dayKey:todayKey(), defaultScope: opt.view==='template' ? 'template' : 'day'};
         var t0 = performance.now();
+        // same date check as the real flow; opt.noGuard measures the parser on its own
+        var guarded = function(ops){ return opt.noGuard ? {ops:ops, blocked:0} : guardOps(text, ops); };
         if(opt.mode==='local'){
-          var r = localParse(text, env);
-          return Promise.resolve({ops:r.ops, reply:r.reply, ms:Math.round(performance.now()-t0)});
+          var r = localParse(text, env), gl = guarded(r.ops);
+          return Promise.resolve({ops:gl.ops, blocked:gl.blocked, reply:r.reply, ms:Math.round(performance.now()-t0)});
         }
         return callLLM(buildPrompt(text, env)).then(function(res){
-          return {ops:validateOps(res.data, env), raw:res.data, reply:res.data && res.data.reply || '', ms:Math.round(performance.now()-t0)};
+          var g = guarded(validateOps(res.data, env));
+          return {ops:g.ops, blocked:g.blocked, raw:res.data, reply:res.data && res.data.reply || '', ms:Math.round(performance.now()-t0)};
         });
       },
-      today: todayKey, dateKeyIn: dateKeyIn
+      today: todayKey, dateKeyIn: dateKeyIn, mentionsOtherDay: mentionsOtherDay
     };
   }
 

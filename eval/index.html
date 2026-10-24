@@ -53,14 +53,14 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
   <div class="sub">用一份固定的日程、模板和学习项目（当前时间 14:00），把每句话分别交给 DeepSeek 和本地规则解析，和标准答案逐条对比。<br>
     判分规则：一句话产生的指令必须<b>全部对上</b>才算对（类型、对象、时间或数量、改今天还是改模板，都要一致，不能多也不能少）。</div>
   <div class="controls">
-    <select id="who"><option value="all">全部用例</option><option value="seed">只看种子用例（开发者写的）</option><option value="user">只看真实用户说法</option></select>
+    <select id="suite"><option value="cases_user.json">真实用户说法（10 位同学 · 100 句）</option><option value="cases.json">种子用例（开发者编写 · 60 句）</option></select>
     <button class="primary" id="runBoth">两种都跑</button>
     <button id="runLocal">只跑本地规则</button>
     <button id="runLlm">只跑 DeepSeek</button>
     <button id="download" disabled>下载结果 JSON</button>
     <span class="status" id="status">准备中…</span>
   </div>
-  <div class="notice" id="notice">种子用例是开发者自己写的，本地规则也是同一个人写的，所以本地规则在种子用例上的分数<b>偏高</b>。写进简历的数字，应该用「真实用户说法」那部分来算。</div>
+  <div class="notice" id="notice"></div>
 
   <div class="tiles" id="tiles"></div>
   <h2>按类别</h2>
@@ -94,7 +94,7 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
     var bad = [];
     if(spec.op !== op.op) return ['op'];
     if(!/^project_/.test(spec.op) && (spec.scope||'day') !== scopeOf(op)) bad.push('scope');
-    if(spec.target && nameOf(op.id) !== spec.target) bad.push('target');
+    if(spec.target && [].concat(spec.target).indexOf(nameOf(op.id)) < 0) bad.push('target');
     if(spec.project && nameOf(op.id) !== spec.project) bad.push('target');
     if(spec['name~'] && !spec['name~'].some(function(k){ return String(op.name||'').indexOf(k) >= 0; })) bad.push('name');
     ['start','end','unit','category','value','amount','dailyTarget','total','current'].forEach(function(k){
@@ -157,15 +157,25 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
     ['start','end','minutes','unit','category','value','amount','dailyTarget','total','current'].forEach(function(k){ if(s[k]!=null) o[k] = s[k]; });
     if(s.deadline) o.deadline = [].concat(s.deadline).map(resolveDeadline).join('/');
     if(Array.isArray(s.unit)) o.unit = s.unit.join('/');
-    var label = s.target || s.project;
+    var label = s.target ? [].concat(s.target).join('/') : s.project;
     var t = describe(o);
     return label ? t.replace(/^(新增|挪动|改时长|删除|记进度|改项目|删项目)/, '$1「'+label+'」') : t;
   }
 
-  function selected(){
-    var who = $('who').value;
-    return data.cases.filter(function(c){ return who==='all' || (c.author||'seed')===who; });
+  function selected(){ return data.cases; }
+  // a case can tweak the fixed day, e.g. one person's reading block starts at 07:30 instead of 07:00
+  function dayFor(c){
+    if(!c.patch) return fixture.day;
+    return fixture.day.map(function(a){
+      var p = c.patch.filter(function(x){ return x.name===a.name; })[0];
+      if(!p) return a;
+      var b = {}; for(var k in a) b[k] = a[k];
+      b.start = p.start; b.end = p.end;
+      return b;
+    });
   }
+  // "can handle" = the reference answer does something; "beyond scope" = it should change nothing
+  function inScope(c){ return (c.alt || [c.expect]).some(function(e){ return e.length > 0; }); }
   function run(modes){
     ['runBoth','runLocal','runLlm'].forEach(function(id){ $(id).disabled = true; });
     var cases = selected(), queue = [];
@@ -180,11 +190,11 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
       }
       var job = queue.shift(), m = job[0], c = job[1];
       $('status').textContent = MODE_NAME[m]+' · '+(++done)+'/'+(done+queue.length)+' · '+c.text;
-      api.parse(c.text, {mode:m, view:c.view, now:fixture.now, day:fixture.day}).then(function(r){
+      api.parse(c.text, {mode:m, view:c.view, now:fixture.now, day:dayFor(c)}).then(function(r){
         var j = judgeCase(c, r.ops);
-        results[m].rows.push({id:c.id, cat:c.cat, author:c.author||'seed', text:c.text, view:c.view, ok:j.ok, errs:j.errs, ops:r.ops, reply:r.reply, ms:r.ms});
+        results[m].rows.push({id:c.id, cat:c.cat, author:c.author||'seed', inScope:inScope(c), text:c.text, view:c.view, ok:j.ok, errs:j.errs, ops:r.ops, reply:r.reply, ms:r.ms});
       }).catch(function(e){
-        results[m].rows.push({id:c.id, cat:c.cat, author:c.author||'seed', text:c.text, view:c.view, ok:false, errs:['none'], ops:[], error:String(e)});
+        results[m].rows.push({id:c.id, cat:c.cat, author:c.author||'seed', inScope:inScope(c), text:c.text, view:c.view, ok:false, errs:['none'], ops:[], error:String(e)});
       }).then(function(){ render(); setTimeout(next, m==='llm' ? 150 : 0); });
     }
     next();
@@ -198,6 +208,12 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
       var ok = r.rows.filter(function(x){ return x.ok; }).length, n = r.rows.length;
       var ms = r.rows.map(function(x){ return x.ms; }).filter(function(v){ return v!=null; }).sort(function(a,b){ return a-b; });
       tiles.push('<div class="tile"><div class="l">'+MODE_NAME[m]+' · 全对率</div><div class="v">'+pct(ok,n)+'</div><div class="h">'+ok+' / '+n+' 句完全正确'+(ms.length ? ' · 耗时中位数 '+(m==='llm' ? (ms[Math.floor(ms.length/2)]/1000).toFixed(1)+' 秒' : ms[Math.floor(ms.length/2)]+' 毫秒') : '')+'</div></div>');
+      var ins = r.rows.filter(function(x){ return x.inScope; }), outs = r.rows.filter(function(x){ return !x.inScope; });
+      var insOk = ins.filter(function(x){ return x.ok; }).length, outsOk = outs.filter(function(x){ return x.ok; }).length;
+      if(outs.length){
+        tiles.push('<div class="tile"><div class="l">'+MODE_NAME[m]+' · 能处理的句子全对率</div><div class="v">'+pct(insOk, ins.length)+'</div><div class="h">'+insOk+' / '+ins.length+' 句（产品能力范围内）</div></div>');
+        tiles.push('<div class="tile"><div class="l">'+MODE_NAME[m]+' · 超出能力时不乱改</div><div class="v">'+pct(outsOk, outs.length)+'</div><div class="h">'+outsOk+' / '+outs.length+' 句没有执行错误的修改</div></div>');
+      }
     });
     $('tiles').innerHTML = tiles.join('');
 
@@ -237,32 +253,41 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
   $('runBoth').addEventListener('click', function(){ run(['llm','local']); });
   $('runLocal').addEventListener('click', function(){ run(['local']); });
   $('runLlm').addEventListener('click', function(){ run(['llm']); });
-  $('who').addEventListener('change', render);
+  $('suite').addEventListener('change', function(){ loadSuite($('suite').value); });
   $('download').addEventListener('click', function(){
     var blob = new Blob([JSON.stringify({cases:data.cases.length, results:results}, null, 2)], {type:'application/json'});
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'eval-results-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
   });
 
-  // wait for both the cases file and the app's eval hook
-  Promise.all([
-    fetch('cases.json').then(function(r){ return r.json(); }),
-    new Promise(function(resolve){
-      var t = setInterval(function(){
-        var w = $('app').contentWindow;
-        if(w && w.__sansanTest){ clearInterval(t); resolve(w.__sansanTest); }
-      }, 100);
-    })
-  ]).then(function(res){
-    data = res[0]; api = res[1];
-    var f = data.fixture, names = {};
-    var proj = f.projects.map(function(p){ var q = {}; for(var k in p) q[k] = p[k]; q.deadline = resolveDeadline(p.deadline); return q; });
-    f.day.concat(f.template).concat(proj).forEach(function(a){ names[a.id] = a.name; });
-    fixture = {now:f.now, day:f.day, names:names};
-    api.setFixture({template:f.template, projects:proj});
-    var nUser = data.cases.filter(function(c){ return c.author==='user'; }).length;
-    $('status').textContent = '已载入 '+data.cases.length+' 条用例（真实用户说法 '+nUser+' 条）';
-    render();
-  }).catch(function(e){ $('status').textContent = '载入失败：'+e; });
+  var NOTICE = {
+    'cases.json': '种子用例是开发者自己写的，本地规则也是同一个人写的，所以本地规则在这里的分数<b>偏高</b>。对外引用请用「真实用户说法」。',
+    'cases_user.json': '10 位同学在没看任何例句的情况下写的说法。产品目前只能改正在查看的这一天、基础模板和学习项目；跨天操作、标记完成、昨天顺延等超出能力的说法，标准答案是<b>不做任何修改</b>，分开统计。'
+  };
+  // each case file carries its own fixed day, template and projects
+  function loadSuite(file){
+    results = {local:null, llm:null};
+    $('download').disabled = true;
+    $('status').textContent = '载入 '+file+'…';
+    return fetch(file+'?v='+Date.now()).then(function(r){ return r.json(); }).then(function(d){
+      data = d;
+      var f = data.fixture, names = {};
+      var proj = f.projects.map(function(p){ var q = {}; for(var k in p) q[k] = p[k]; q.deadline = resolveDeadline(p.deadline); return q; });
+      f.day.concat(f.template).concat(proj).forEach(function(a){ names[a.id] = a.name; });
+      fixture = {now:f.now, day:f.day, names:names};
+      api.setFixture({template:f.template, projects:proj});
+      $('notice').innerHTML = NOTICE[file] || '';
+      var nIn = data.cases.filter(inScope).length;
+      $('status').textContent = '已载入 '+data.cases.length+' 条用例（能力范围内 '+nIn+' 条，超出能力 '+(data.cases.length-nIn)+' 条）';
+      render();
+    }).catch(function(e){ $('status').textContent = '载入失败：'+e; });
+  }
+  // wait for the app's eval hook, then load the selected case file
+  new Promise(function(resolve){
+    var t = setInterval(function(){
+      var w = $('app').contentWindow;
+      if(w && w.__sansanTest){ clearInterval(t); resolve(w.__sansanTest); }
+    }, 100);
+  }).then(function(a){ api = a; return loadSuite($('suite').value); });
 })();
 </script>
 </body>
