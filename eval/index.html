@@ -94,9 +94,21 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
     var bad = [];
     if(spec.op !== op.op) return ['op'];
     if(!/^project_/.test(spec.op) && (spec.scope||'day') !== scopeOf(op)) bad.push('scope');
-    if(spec.target && [].concat(spec.target).indexOf(nameOf(op.id)) < 0) bad.push('target');
+    // today's items come back as ids, another day's as names
+    var opName = op.id ? nameOf(op.id) : String(op.name||'');
+    if(spec.target && ![].concat(spec.target).some(function(t){ return opName===t || (op.name && opName.indexOf(t)>=0); })) bad.push('target');
     if(spec.project && nameOf(op.id) !== spec.project) bad.push('target');
-    if(spec['name~'] && !spec['name~'].some(function(k){ return String(op.name||'').indexOf(k) >= 0; })) bad.push('name');
+    if(spec['name~'] && !spec['name~'].some(function(k){ return opName.indexOf(k) >= 0; })) bad.push('name');
+    // which day: compare the dates the rules work out, not the wording ("周五" vs "这周五")
+    var dayOf = function(p){ return p ? api.resolveDay(p) : null; };
+    var today = api.today();
+    var opDay = dayOf(op.day) || today, specDays = spec.day ? [].concat(spec.day).map(dayOf) : [today];
+    if(!/^project_/.test(spec.op) && spec.op!=='carry_over' && specDays.indexOf(opDay) < 0) bad.push('day');
+    if(spec.toDay && [].concat(spec.toDay).map(dayOf).indexOf(dayOf(op.toDay)) < 0) bad.push('day');
+    if(!spec.toDay && op.toDay && dayOf(op.toDay) !== opDay) bad.push('day');
+    if(spec.from && !(dayOf(op.from) && dayOf(op.from)===dayOf(spec.from)) && String(op.from||'').indexOf(spec.from) < 0) bad.push('day');
+    if(spec.all!=null && !!op.all !== spec.all) bad.push('target');
+    if(spec.done!=null && (op.done!==false) !== spec.done) bad.push('param');
     ['start','end','unit','category','value','amount','dailyTarget','total','current'].forEach(function(k){
       if(spec[k]==null) return;
       if(k==='start' || k==='end'){ if(!op[k] || toMin(op[k]) !== toMin(spec[k])) bad.push(k); }
@@ -110,7 +122,7 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
     return bad;
   }
   var ERR_NAME = {none:'没解析出指令', extra_on_irrelevant:'无关的话被执行', missing:'漏掉指令/类型错', extra:'多出指令',
-                  target:'找错对象', scope:'改错位置（今天/模板）', name:'名称不对', param:'时间或数量不对'};
+                  target:'找错对象', day:'日期不对', scope:'改错位置（今天/模板）', name:'名称不对', param:'时间或数量不对'};
   function judge(expect, ops){
     if(!expect.length) return ops.length ? {ok:false, errs:['extra_on_irrelevant']} : {ok:true, errs:[]};
     if(!ops.length) return {ok:false, errs:['none']};
@@ -123,7 +135,7 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
       if(near < 0){ errs.push('missing'); return; }
       used[near] = true;
       var d = diff(spec, ops[near]);
-      errs.push(d.indexOf('target')>=0 ? 'target' : d.indexOf('scope')>=0 ? 'scope' : d.indexOf('name')>=0 ? 'name' : 'param');
+      errs.push(d.indexOf('target')>=0 ? 'target' : d.indexOf('day')>=0 ? 'day' : d.indexOf('scope')>=0 ? 'scope' : d.indexOf('name')>=0 ? 'name' : 'param');
     });
     if(used.some(function(u){ return !u; })) errs.push('extra');
     return {ok:!errs.length, errs:errs};
@@ -138,7 +150,13 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
   function describe(op){
     var sc = op.scope==='template' ? ' [模板]' : '';
     var n = op.id ? '「'+nameOf(op.id)+'」' : (op.name ? '「'+op.name+'」' : '');
+    var d = op.day ? '['+op.day+'] ' : '';
+    return d + describeOne(op, n, sc) + (op.toDay ? ' → '+op.toDay : '');
+  }
+  function describeOne(op, n, sc){
     switch(op.op){
+      case 'mark_done': return (op.done===false ? '取消完成' : '标记完成')+(op.all ? '（全部）' : n);
+      case 'carry_over': return '把'+(op.from||'')+'没做完的'+(op.names ? '「'+op.names.join('、')+'」' : '')+'顺延到今天'+(op.after ? ' '+op.after+'后' : '');
       case 'add': return '新增'+n+(op.start ? ' '+op.start+(op.end ? '–'+op.end : '') : '')+(op.minutes ? ' '+op.minutes+'分钟' : '')+sc;
       case 'move': return '挪动'+n+' → '+op.start+sc;
       case 'resize': return '改时长'+n+' '+op.minutes+'分钟'+sc;
@@ -157,9 +175,13 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
     ['start','end','minutes','unit','category','value','amount','dailyTarget','total','current'].forEach(function(k){ if(s[k]!=null) o[k] = s[k]; });
     if(s.deadline) o.deadline = [].concat(s.deadline).map(resolveDeadline).join('/');
     if(Array.isArray(s.unit)) o.unit = s.unit.join('/');
+    ['day','toDay'].forEach(function(k){ if(s[k]) o[k] = [].concat(s[k]).join('/'); });
+    if(s.from) o.from = s.from;
+    if(s.all) o.all = true;
+    if(s.done===false) o.done = false;
     var label = s.target ? [].concat(s.target).join('/') : s.project;
     var t = describe(o);
-    return label ? t.replace(/^(新增|挪动|改时长|删除|记进度|改项目|删项目)/, '$1「'+label+'」') : t;
+    return label ? t.replace(/(新增|挪动|改时长|删除|记进度|改项目|删项目|标记完成|取消完成)/, '$1「'+label+'」') : t;
   }
 
   function selected(){ return data.cases; }
