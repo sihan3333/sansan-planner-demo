@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>作息簿指令评测</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#FAF6E8; --surface:#FFFEF9; --surface-2:#EDF0DD; --ink:#2E3A26; --ink-soft:#5F6A54; --ink-faint:#8A927C;
+  --line:#E4DDBE; --accent:#5E8530; --accent-soft:#DCE7C8; --danger:#A8473A; --danger-soft:#F3E1DC; --warn:#8A6D12;
+  --font-display:'Fraunces',Georgia,'Songti SC',serif; --font-body:'IBM Plex Sans','PingFang SC','Microsoft YaHei',sans-serif; --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){ --bg:#1A1F17; --surface:#22281D; --surface-2:#2A3123; --ink:#ECE8D6; --ink-soft:#B4B9A2; --ink-faint:#858C75; --line:#3A4232; --accent:#9BC96B; --accent-soft:#33402A; --danger:#E0968A; --danger-soft:#3A2621; --warn:#E0C169; }
+}
+:root[data-theme="dark"]{ --bg:#1A1F17; --surface:#22281D; --surface-2:#2A3123; --ink:#ECE8D6; --ink-soft:#B4B9A2; --ink-faint:#858C75; --line:#3A4232; --accent:#9BC96B; --accent-soft:#33402A; --danger:#E0968A; --danger-soft:#3A2621; --warn:#E0C169; }
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 16px 64px;}
+h1{font-family:var(--font-display);font-weight:600;font-size:26px;margin:0;}
+.sub{color:var(--ink-soft);font-size:13px;margin-top:4px;line-height:1.6;}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0 6px;}
+button,select{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 12px;font-family:var(--font-body);font-size:13px;cursor:pointer;}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+button:disabled{opacity:.55;cursor:default;}
+.status{font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);}
+.notice{margin:14px 0 0;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.6;background:color-mix(in srgb, var(--warn) 12%, var(--surface));}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:18px;}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+.tile .l{font-size:12.5px;color:var(--ink-soft);}
+.tile .v{font-family:var(--font-mono);font-size:28px;font-weight:500;margin-top:6px;}
+.tile .h{font-size:11.5px;color:var(--ink-faint);margin-top:4px;}
+h2{font-family:var(--font-display);font-weight:600;font-size:17px;margin:28px 0 10px;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 10px;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;font-weight:500;color:var(--ink-soft);border-bottom:1px solid var(--line);padding:8px;white-space:nowrap;}
+td{border-bottom:1px solid var(--line);padding:8px;vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+td.num{font-family:var(--font-mono);white-space:nowrap;}
+.bar{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--accent);vertical-align:middle;margin-right:6px;}
+.ok{color:var(--accent);font-weight:600;}
+.bad{color:var(--danger);font-weight:600;}
+.tag{display:inline-block;font-size:11px;border-radius:5px;padding:1px 6px;background:var(--danger-soft);color:var(--danger);white-space:nowrap;margin:1px 2px 1px 0;}
+.tag.soft{background:var(--surface-2);color:var(--ink-soft);}
+.ops{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);line-height:1.6;}
+iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>三三作息簿 · 指令解析评测</h1>
+  <div class="sub">用一份固定的日程、模板和学习项目（当前时间 14:00），把每句话分别交给 DeepSeek 和本地规则解析，和标准答案逐条对比。<br>
+    判分规则：一句话产生的指令必须<b>全部对上</b>才算对（类型、对象、时间或数量、改今天还是改模板，都要一致，不能多也不能少）。</div>
+  <div class="controls">
+    <select id="who"><option value="all">全部用例</option><option value="seed">只看种子用例（开发者写的）</option><option value="user">只看真实用户说法</option></select>
+    <button class="primary" id="runBoth">两种都跑</button>
+    <button id="runLocal">只跑本地规则</button>
+    <button id="runLlm">只跑 DeepSeek</button>
+    <button id="download" disabled>下载结果 JSON</button>
+    <span class="status" id="status">准备中…</span>
+  </div>
+  <div class="notice" id="notice">种子用例是开发者自己写的，本地规则也是同一个人写的，所以本地规则在种子用例上的分数<b>偏高</b>。写进简历的数字，应该用「真实用户说法」那部分来算。</div>
+
+  <div class="tiles" id="tiles"></div>
+  <h2>按类别</h2>
+  <div class="card"><table><thead><tr><th>类别</th><th>条数</th><th>DeepSeek</th><th>本地规则</th></tr></thead><tbody id="byCat"></tbody></table></div>
+  <h2>错误类型</h2>
+  <div class="card"><table><thead><tr><th>错误类型</th><th>DeepSeek</th><th>本地规则</th></tr></thead><tbody id="byErr"></tbody></table></div>
+  <h2>没答对的句子</h2>
+  <div class="card"><table><thead><tr><th>#</th><th>说法</th><th>方式</th><th>错误</th><th>标准答案</th><th>实际解析</th></tr></thead><tbody id="fails"></tbody></table></div>
+</div>
+<iframe id="app" src="../index.html?eval=1"></iframe>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var data = null, api = null, fixture = null, results = {local:null, llm:null};
+  var MODE_NAME = {llm:'DeepSeek', local:'本地规则'};
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function resolveDeadline(v){
+    if(!v) return v;
+    if(v==='monthEnd'){ var d = new Date(); return api.dateKeyIn(Math.round((new Date(d.getFullYear(), d.getMonth()+1, 0) - new Date(d.getFullYear(), d.getMonth(), d.getDate()))/86400000)); }
+    if(/^\+\d+$/.test(v)) return api.dateKeyIn(+v.slice(1));
+    if(/^\d{2}-\d{2}$/.test(v)){ var y = new Date().getFullYear(), k = y+'-'+v; return k < api.today() ? (y+1)+'-'+v : k; }
+    return v;
+  }
+  function nameOf(id){ return fixture.names[id] || id; }
+  function toMin(s){ var p = String(s).split(':'); return (+p[0])*60 + (+p[1]); }
+  function scopeOf(op){ return /^project_/.test(op.op) ? 'project' : (op.scope==='template' ? 'template' : 'day'); }
+
+  // which expected fields an op gets wrong (empty list = it matches)
+  function diff(spec, op){
+    var bad = [];
+    if(spec.op !== op.op) return ['op'];
+    if(!/^project_/.test(spec.op) && (spec.scope||'day') !== scopeOf(op)) bad.push('scope');
+    if(spec.target && nameOf(op.id) !== spec.target) bad.push('target');
+    if(spec.project && nameOf(op.id) !== spec.project) bad.push('target');
+    if(spec['name~'] && !spec['name~'].some(function(k){ return String(op.name||'').indexOf(k) >= 0; })) bad.push('name');
+    ['start','end','unit','category','value','amount','dailyTarget','total','current'].forEach(function(k){
+      if(spec[k]==null) return;
+      if(k==='start' || k==='end'){ if(!op[k] || toMin(op[k]) !== toMin(spec[k])) bad.push(k); }
+      else if(Array.isArray(spec[k]) ? spec[k].indexOf(op[k]) < 0 : op[k] !== spec[k]) bad.push(k); // a list = any of these is fine
+    });
+    if(spec.minutes!=null){
+      var m = op.minutes!=null ? op.minutes : (op.start && op.end ? toMin(op.end)-toMin(op.start) : null);
+      if(m !== spec.minutes) bad.push('minutes');
+    }
+    if(spec.deadline && [].concat(spec.deadline).map(resolveDeadline).indexOf(op.deadline) < 0) bad.push('deadline');
+    return bad;
+  }
+  var ERR_NAME = {none:'没解析出指令', extra_on_irrelevant:'无关的话被执行', missing:'漏掉指令/类型错', extra:'多出指令',
+                  target:'找错对象', scope:'改错位置（今天/模板）', name:'名称不对', param:'时间或数量不对'};
+  function judge(expect, ops){
+    if(!expect.length) return ops.length ? {ok:false, errs:['extra_on_irrelevant']} : {ok:true, errs:[]};
+    if(!ops.length) return {ok:false, errs:['none']};
+    var used = ops.map(function(){ return false; }), errs = [];
+    expect.forEach(function(spec){
+      var hit = ops.findIndex(function(op, i){ return !used[i] && !diff(spec, op).length; });
+      if(hit >= 0){ used[hit] = true; return; }
+      // nearest op of the same type tells us what went wrong
+      var near = ops.findIndex(function(op, i){ return !used[i] && op.op===spec.op; });
+      if(near < 0){ errs.push('missing'); return; }
+      used[near] = true;
+      var d = diff(spec, ops[near]);
+      errs.push(d.indexOf('target')>=0 ? 'target' : d.indexOf('scope')>=0 ? 'scope' : d.indexOf('name')>=0 ? 'name' : 'param');
+    });
+    if(used.some(function(u){ return !u; })) errs.push('extra');
+    return {ok:!errs.length, errs:errs};
+  }
+  function judgeCase(c, ops){
+    var options = c.alt || [c.expect];
+    var best = null;
+    options.forEach(function(exp){ var j = judge(exp, ops); if(!best || (j.ok && !best.ok) || j.errs.length < best.errs.length) best = j; });
+    return best;
+  }
+
+  function describe(op){
+    var sc = op.scope==='template' ? ' [模板]' : '';
+    var n = op.id ? '「'+nameOf(op.id)+'」' : (op.name ? '「'+op.name+'」' : '');
+    switch(op.op){
+      case 'add': return '新增'+n+(op.start ? ' '+op.start+(op.end ? '–'+op.end : '') : '')+(op.minutes ? ' '+op.minutes+'分钟' : '')+sc;
+      case 'move': return '挪动'+n+' → '+op.start+sc;
+      case 'resize': return '改时长'+n+' '+op.minutes+'分钟'+sc;
+      case 'remove': return '删除'+n+sc;
+      case 'delay': return '顺延 '+op.minutes+'分钟';
+      case 'replan': return '没做完的往后排';
+      case 'project_add': return '新项目'+n+' '+op.total+(op.unit||'')+(op.current ? ' 已完成'+op.current : '')+(op.deadline ? ' 截止'+op.deadline : '');
+      case 'project_progress': return '记进度'+n+(op.value!=null ? ' =' + op.value : ' +' + op.amount);
+      case 'project_update': return '改项目'+n+['deadline','dailyTarget','total','category','name'].filter(function(k){ return op[k]!=null; }).map(function(k){ return ' '+k+'='+op[k]; }).join('');
+      case 'project_remove': return '删项目'+n;
+    }
+    return JSON.stringify(op);
+  }
+  function describeSpec(s){
+    var o = {op:s.op, scope:s.scope, name:s['name~'] ? s['name~'].join('/') : undefined};
+    ['start','end','minutes','unit','category','value','amount','dailyTarget','total','current'].forEach(function(k){ if(s[k]!=null) o[k] = s[k]; });
+    if(s.deadline) o.deadline = [].concat(s.deadline).map(resolveDeadline).join('/');
+    if(Array.isArray(s.unit)) o.unit = s.unit.join('/');
+    var label = s.target || s.project;
+    var t = describe(o);
+    return label ? t.replace(/^(新增|挪动|改时长|删除|记进度|改项目|删项目)/, '$1「'+label+'」') : t;
+  }
+
+  function selected(){
+    var who = $('who').value;
+    return data.cases.filter(function(c){ return who==='all' || (c.author||'seed')===who; });
+  }
+  function run(modes){
+    ['runBoth','runLocal','runLlm'].forEach(function(id){ $(id).disabled = true; });
+    var cases = selected(), queue = [];
+    modes.forEach(function(m){ results[m] = {mode:m, at:new Date().toISOString(), rows:[]}; cases.forEach(function(c){ queue.push([m, c]); }); });
+    var done = 0;
+    function next(){
+      if(!queue.length){
+        $('status').textContent = '完成：'+done+' 次解析';
+        ['runBoth','runLocal','runLlm'].forEach(function(id){ $(id).disabled = false; });
+        $('download').disabled = false;
+        render(); return;
+      }
+      var job = queue.shift(), m = job[0], c = job[1];
+      $('status').textContent = MODE_NAME[m]+' · '+(++done)+'/'+(done+queue.length)+' · '+c.text;
+      api.parse(c.text, {mode:m, view:c.view, now:fixture.now, day:fixture.day}).then(function(r){
+        var j = judgeCase(c, r.ops);
+        results[m].rows.push({id:c.id, cat:c.cat, author:c.author||'seed', text:c.text, view:c.view, ok:j.ok, errs:j.errs, ops:r.ops, reply:r.reply, ms:r.ms});
+      }).catch(function(e){
+        results[m].rows.push({id:c.id, cat:c.cat, author:c.author||'seed', text:c.text, view:c.view, ok:false, errs:['none'], ops:[], error:String(e)});
+      }).then(function(){ render(); setTimeout(next, m==='llm' ? 150 : 0); });
+    }
+    next();
+  }
+
+  function pct(a, b){ return b ? Math.round(a/b*1000)/10 + '%' : '—'; }
+  function render(){
+    var tiles = [];
+    ['llm','local'].forEach(function(m){
+      var r = results[m]; if(!r) return;
+      var ok = r.rows.filter(function(x){ return x.ok; }).length, n = r.rows.length;
+      var ms = r.rows.map(function(x){ return x.ms; }).filter(function(v){ return v!=null; }).sort(function(a,b){ return a-b; });
+      tiles.push('<div class="tile"><div class="l">'+MODE_NAME[m]+' · 全对率</div><div class="v">'+pct(ok,n)+'</div><div class="h">'+ok+' / '+n+' 句完全正确'+(ms.length ? ' · 耗时中位数 '+(m==='llm' ? (ms[Math.floor(ms.length/2)]/1000).toFixed(1)+' 秒' : ms[Math.floor(ms.length/2)]+' 毫秒') : '')+'</div></div>');
+    });
+    $('tiles').innerHTML = tiles.join('');
+
+    var cats = []; data.cases.forEach(function(c){ if(cats.indexOf(c.cat)<0) cats.push(c.cat); });
+    $('byCat').innerHTML = cats.map(function(cat){
+      var cell = function(m){
+        var r = results[m]; if(!r) return '<td class="num">—</td>';
+        var rows = r.rows.filter(function(x){ return x.cat===cat; }); if(!rows.length) return '<td class="num">—</td>';
+        var ok = rows.filter(function(x){ return x.ok; }).length;
+        return '<td class="num"><span class="bar" style="width:'+Math.round(ok/rows.length*80)+'px"></span>'+ok+'/'+rows.length+'</td>';
+      };
+      var n = selected().filter(function(c){ return c.cat===cat; }).length;
+      return n ? '<tr><td>'+esc(cat)+'</td><td class="num">'+n+'</td>'+cell('llm')+cell('local')+'</tr>' : '';
+    }).join('');
+
+    var errKeys = Object.keys(ERR_NAME);
+    $('byErr').innerHTML = errKeys.map(function(k){
+      var cnt = function(m){ var r = results[m]; if(!r) return '—'; return r.rows.reduce(function(s,x){ return s + x.errs.filter(function(e){ return e===k; }).length; }, 0); };
+      var a = cnt('llm'), b = cnt('local');
+      return (a || b) ? '<tr><td>'+ERR_NAME[k]+'</td><td class="num">'+a+'</td><td class="num">'+b+'</td></tr>' : '';
+    }).join('') || '<tr><td colspan="3" style="color:var(--ink-faint)">还没有错误</td></tr>';
+
+    var byId = {}; data.cases.forEach(function(c){ byId[c.id] = c; });
+    var fails = [];
+    ['llm','local'].forEach(function(m){ var r = results[m]; if(r) r.rows.forEach(function(x){ if(!x.ok) fails.push([m, x]); }); });
+    fails.sort(function(a,b){ return a[1].id-b[1].id || (a[0]<b[0]?-1:1); });
+    $('fails').innerHTML = fails.map(function(f){
+      var m = f[0], x = f[1], c = byId[x.id];
+      var exp = (c.alt ? c.alt.map(function(a){ return a.map(describeSpec).join('；') || '（不执行任何操作）'; }).join(' 或 ') : (c.expect.map(describeSpec).join('<br>') || '（不执行任何操作）'));
+      return '<tr><td class="num">'+x.id+'</td><td>'+esc(x.text)+'<br><span class="tag soft">'+esc(x.cat)+'</span>'+(x.author==='user' ? '<span class="tag soft">真实用户</span>' : '')+'</td>'+
+        '<td>'+MODE_NAME[m]+'</td><td>'+x.errs.map(function(e){ return '<span class="tag">'+ERR_NAME[e]+'</span>'; }).join('')+'</td>'+
+        '<td class="ops">'+exp+'</td><td class="ops">'+(x.ops.length ? x.ops.map(function(o){ return esc(describe(o)); }).join('<br>') : (x.error ? esc(x.error) : '（没有）'))+'</td></tr>';
+    }).join('') || '<tr><td colspan="6" style="color:var(--ink-faint)">全部答对</td></tr>';
+    window.__evalResults = results;
+  }
+
+  $('runBoth').addEventListener('click', function(){ run(['llm','local']); });
+  $('runLocal').addEventListener('click', function(){ run(['local']); });
+  $('runLlm').addEventListener('click', function(){ run(['llm']); });
+  $('who').addEventListener('change', render);
+  $('download').addEventListener('click', function(){
+    var blob = new Blob([JSON.stringify({cases:data.cases.length, results:results}, null, 2)], {type:'application/json'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'eval-results-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  });
+
+  // wait for both the cases file and the app's eval hook
+  Promise.all([
+    fetch('cases.json').then(function(r){ return r.json(); }),
+    new Promise(function(resolve){
+      var t = setInterval(function(){
+        var w = $('app').contentWindow;
+        if(w && w.__sansanTest){ clearInterval(t); resolve(w.__sansanTest); }
+      }, 100);
+    })
+  ]).then(function(res){
+    data = res[0]; api = res[1];
+    var f = data.fixture, names = {};
+    var proj = f.projects.map(function(p){ var q = {}; for(var k in p) q[k] = p[k]; q.deadline = resolveDeadline(p.deadline); return q; });
+    f.day.concat(f.template).concat(proj).forEach(function(a){ names[a.id] = a.name; });
+    fixture = {now:f.now, day:f.day, names:names};
+    api.setFixture({template:f.template, projects:proj});
+    var nUser = data.cases.filter(function(c){ return c.author==='user'; }).length;
+    $('status').textContent = '已载入 '+data.cases.length+' 条用例（真实用户说法 '+nUser+' 条）';
+    render();
+  }).catch(function(e){ $('status').textContent = '载入失败：'+e; });
+})();
+</script>
+</body>
+</html>

@@ -2308,8 +2308,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     '凌晨':[0,360], '早上':[360,600], '早晨':[360,600], '上午':[480,720], '中午':[690,840],
     '下午':[720,1080], '傍晚':[1020,1170], '晚上':[1080,null], '今晚':[1080,null], '夜里':[1200,null]
   };
-  // "以后 / 每天都 / 模板": the change is about the usual day, not just this one
-  var TEMPLATE_HINT = /以后|往后|每天都|天天|从明天起|基础模板|模板/;
+  // "以后 / 每天都 / 模板": the change is about the usual day, not just this one.
+  // bare 以后/往后 also mean "after"/"later" ("晚饭以后去健身", "没做完的往后排"), so they only count
+  // when they open the sentence or lead into 每天/都/就
+  var TEMPLATE_HINT = /(?:^|[，,。；;\s])以后|以后(?:每天|都|就)|往后(?:每天|都)|每天都|天天|从明天起|基础模板|模板/;
   function withPeriod(p, h){
     if(/下午|傍晚|晚上|今晚|夜里/.test(p||'')){ if(h<12) h+=12; }
     else if(p==='中午'){ if(h<=3) h+=12; }
@@ -3183,6 +3185,34 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     heard = ''; $('aiInput').value = '';
     try{ recog.start(); recognizing = true; $('aiMic').classList.add('recording'); aiStatus('在听…'); }catch(err){}
   });
+
+  // ---------- 评测钩子：只在 ?eval=1 时暴露，供 eval/ 下的评测页逐条测解析准确率 ----------
+  // 用固定的日程、模板和学习项目，只调用「理解」这一步，不写入任何数据，也不发送使用事件
+  if(/[?&]eval=1/.test(location.search)){
+    EVENTS_ENDPOINT = '';
+    window.__sansanTest = {
+      setFixture: function(f){
+        state.template = f.template.map(normalizeActivity);
+        state.projects = f.projects.map(function(p){ return withProject(p, {}); });
+      },
+      // mode: 'local' = 本地规则，'llm' = 大模型（DeepSeek）；返回校验后的指令
+      parse: function(text, opt){
+        var nowM = toMin(opt.now || '14:00');
+        var ctx = {isToday:true, now:nowM, from:ceil5(nowM)};
+        var env = {day:opt.day.map(normalizeActivity), tpl:state.template, ctx:ctx, view:opt.view || 'day',
+                   dayKey:todayKey(), defaultScope: opt.view==='template' ? 'template' : 'day'};
+        var t0 = performance.now();
+        if(opt.mode==='local'){
+          var r = localParse(text, env);
+          return Promise.resolve({ops:r.ops, reply:r.reply, ms:Math.round(performance.now()-t0)});
+        }
+        return callLLM(buildPrompt(text, env)).then(function(res){
+          return {ops:validateOps(res.data, env), raw:res.data, reply:res.data && res.data.reply || '', ms:Math.round(performance.now()-t0)};
+        });
+      },
+      today: todayKey, dateKeyIn: dateKeyIn
+    };
+  }
 
   // ---------- boot ----------
   render();
