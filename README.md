@@ -14,7 +14,6 @@
 - **复用同一套规则**：App 版在隐藏的 iframe 里加载 `web.html?engine=1`，调用网页版的理解（DeepSeek + 本地规则兜底）、底线检查和排程规则，不另写一套。
 - **网页版**：<https://sihan3333.github.io/sansan-planner-demo/web.html>，功能如下文。
 - [`prd.html`](prd.html)：PRD，含功能清单、状态机、AI 交互逻辑、埋点、数据集要求和验收标准。
-- [`docs/superpowers/specs/2026-10-26-planner-app-design.md`](docs/superpowers/specs/2026-10-26-planner-app-design.md)：设计文档。
 - `figma-app/`：Figma 插件，在 Figma 里运行后生成 21 屏 App 原型；导出的原型图在 `prd-img/`。
 
 ## 功能

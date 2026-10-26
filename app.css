@@ -135,3 +135,14 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .card.row,.card.stat3{flex-direction:row}
 .btn.line{color:var(--ink)}
 [data-delay]{font-size:13px;padding:0 6px}
+.sicons{display:flex;align-items:center;gap:6px}
+.batt{display:inline-flex;align-items:center;justify-content:center;min-width:27px;height:14px;border-radius:4px;background:currentColor;position:relative}
+.batt::after{content:'';position:absolute;right:-3px;top:4px;width:2px;height:6px;border-radius:0 1px 1px 0;background:currentColor;opacity:.5}
+.batt b{font-size:10px;font-weight:700;color:var(--bg)}
+.sbar.dark .batt b{color:#1c2a14}
+.examples{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:13px;color:var(--ink2)}
+.examples button{background:#fff;border:1px dashed var(--accent);border-radius:14px;padding:4px 10px;color:var(--accent-dark)}
+.intro{max-width:1120px;margin:8px auto 0;padding:0 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.intro div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--ink2)}
+.intro b{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}
+@media(max-width:900px){.intro{grid-template-columns:1fr}}

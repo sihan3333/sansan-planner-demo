@@ -12,7 +12,7 @@ td img.thumb{width:110px;border:1px solid var(--line);border-radius:8px;display:
 .v{display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;font-weight:600}
 .v10{background:#E3EED3;color:#3E5A1C}.v11{background:#E3E9F5;color:#38538C}.v12{background:#F6ECD2;color:#8A6A1F}
 </style></head><body class="document"><main>
-<a href="index.html">← App 版 Demo</a> · <a href="web.html">网页版 Demo</a> · <a href="docs/superpowers/specs/2026-10-26-planner-app-design.md">设计文档</a> · <a href="eval/REPORT_user.md">真实说法评测报告</a>
+<a href="index.html">← App 版 Demo</a> · <a href="web.html">网页版 Demo</a> · <a href="eval/REPORT_user.md">真实说法评测报告</a>
 <h1>三三作息簿 App V1.0 产品需求文档</h1>
 <p class="muted">负责人：郑思涵 · 更新：2026-10-26 · 状态：评审中 · 原型图取自 Figma「三三作息簿 App 原型」，共 21 屏</p>
 
@@ -52,12 +52,12 @@ td img.thumb{width:110px;border:1px solid var(--line);border-radius:8px;display:
 <table>
 <tr><th>用什么方式</th><td>把三三作息簿做成手机 App：跨平台主体加 iOS / Android 原生的通知和桌面小组件。围绕「记录 → 优化 → 安排」加入 16 项 AI 功能，分三期上线。大模型负责读懂一句话、语音、截图，并把统计结果解释成人话；时间怎么排、目标怎么算由规则决定；所有改动先预览、确认才写入。</td></tr>
 <tr><th>解决什么问题</th><td>日程在手机上不好用；只有计划没有实际，优化缺少依据；排程和调整仍靠手动。</td></tr>
-<tr><th>达到什么目标</th><td>试用 4 周内：实际记录覆盖率 ≥ 70%；一句话改日程「一次就对」率 ≥ 85%；每人每天推送 ≤ 8 条，关闭通知的用户 &lt; 15%；收件箱任务被排进日程的比例 ≥ 60%；第 4 周仍在使用的比例 ≥ 40%。目标值均为假设，待试用校准。</td></tr>
+<tr><th>达到什么目标</th><td>试用 4 周内：实际记录覆盖率 ≥ 70%；一句话改日程「一次就对」率 ≥ 85%；每人每天推送 ≤ 8 条，关闭通知的用户 &lt; 15%；收件箱任务被排进日程的比例 ≥ 60%；第 4 周仍在使用的比例 ≥ 40%。</td></tr>
 </table>
 
 <h2>3. 功能清单</h2>
 <h3>3.1 全局图</h3>
-<p class="legend"><span style="background:#E3EED3">新增</span><span style="background:#F6ECD2">修改</span><span style="background:#EFEBDD">沿用</span>以网页版为基线；本期无删减功能。</p>
+<p class="legend"><span style="background:#E3EED3">新增</span><span style="background:#F6ECD2">修改</span><span style="background:#EFEBDD">沿用</span></p>
 <pre class="mermaid">
 flowchart LR
   A[三三作息簿 App] --> R[记录]
@@ -146,7 +146,6 @@ stateDiagram-v2
   已跳过 --> [*]
   没记录 --> [*]
 </pre>
-<p class="muted">原型图均取自 Figma「三三作息簿 App 原型」。</p>
 <p class="state">计划中 → 已提醒 → 进行中</p>
 <div class="shots"><figure><img src="prd-img/a1.png" alt="A1 今天"><figcaption>A1 今天</figcaption></figure><figure><img src="prd-img/a2.png" alt="A2 到点通知"><figcaption>A2 到点通知</figcaption></figure><figure><img src="prd-img/a11.png" alt="A11 桌面小组件"><figcaption>A11 桌面小组件</figcaption></figure></div>
 <p class="state">已调整：一句话、语音、被打断、通知回复</p>
@@ -280,7 +279,7 @@ flowchart TB
 <h4>AI 相关功能</h4>
 <table>
 <tr><th>功能点</th><th>测试方式</th><th>指标</th></tr>
-<tr><td>一句话改日程</td><td>在指令解析评测集上跑完整流程（大模型 + 底线检查），逐条与标准指令比对</td><td>能力范围内全对率 ≥ 90%；超出能力时不乱改 ≥ 95%。网页版现状：全对 52/60，不乱改 37/40</td></tr>
+<tr><td>一句话改日程</td><td>在指令解析评测集上跑完整流程（大模型 + 底线检查），逐条与标准指令比对</td><td>能力范围内全对率 ≥ 90%；超出能力时不乱改 ≥ 95%</td></tr>
 <tr><td>一句话排一天 / 收件箱</td><td>在排一天评测集上比对任务列表和放置结果</td><td>任务无遗漏 ≥ 95%；放置违反截止日或覆盖已有安排为 0</td></tr>
 <tr><td>截图导入</td><td>在截图评测集上比对事项、日期、时间</td><td>日期读错为 0（拿不准时必须追问）；事项全对率 ≥ 85%</td></tr>
 <tr><td>复盘写成人话</td><td>人工检查复盘解读评测集</td><td>与统计数字矛盾为 0；原因未标推测为 0</td></tr>
