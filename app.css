@@ -146,3 +146,42 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .intro div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--ink2)}
 .intro b{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}
 @media(max-width:900px){.intro{grid-template-columns:1fr}}
+/* 模式切换 */
+.modebar{max-width:1120px;margin:14px auto 0;padding:0 16px;display:flex;gap:6px}
+.modebar button{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:7px 16px;font-weight:600;color:var(--ink2)}
+.modebar button.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+body.real .stage{grid-template-columns:1fr;justify-items:center}
+body.real .guide{display:none}
+/* 时间轴：打勾、细分、空闲、时间点、重叠 */
+.tickbox{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);background:#fff;display:grid;place-items:center;color:transparent;flex:none;padding:0}
+.tickbox.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tickbox.sm{width:18px;height:18px}
+.tickbox.sm svg{width:12px;height:12px}
+.tickbox.ghost{border:0;background:none}
+.slot [data-edit],.slot [data-tpledit],.slot [data-projedit]{cursor:pointer}
+.subrow{display:flex;align-items:center;gap:8px;padding:4px 0 6px 72px;font-size:13px}
+.slot.free{color:var(--ink3);border-bottom-style:dashed}
+.slot.point .dot{width:10px;height:10px;border-radius:50%;margin:0 -3px}
+.ovl{font-size:11px;color:var(--danger);font-weight:500}
+.iconbtn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--ink2)}
+.datepick{border:1px solid var(--line);border-radius:8px;padding:3px 6px;font:12px var(--sans);background:var(--card);color:var(--ink2)}
+.lchip{font-size:12px;border-radius:12px;padding:2px 9px;background:#EFEBDD;color:var(--ink2)}
+.lchip.on{background:var(--accent-l);color:var(--accent-dark)}
+.sg{border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:6px}
+.sg.warn .sm b{color:var(--warn)}
+.row.wrap{flex-wrap:wrap}
+.xbtn{width:24px;height:24px;border-radius:50%;color:var(--ink3);font-size:18px;line-height:1;flex:none}
+.field{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:13px var(--sans);background:#fff;color:var(--ink);min-width:0;flex:1}
+.field.t{flex:0 0 96px}
+.frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.frow>span:first-child{width:64px;font-size:13px;color:var(--ink2);flex:none}
+.catchip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;padding:2px 8px;font-size:12px;background:#fff}
+.catchip i{width:8px;height:8px;border-radius:50%}
+.catchip.on{border-color:var(--accent);background:var(--accent-l);color:var(--accent-dark)}
+label.btn{cursor:pointer}
+/* 庆祝 */
+.cheer{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(21,32,9,.72);color:#fff;z-index:6;animation:fade 3.2s forwards;pointer-events:none}
+.cheer .burst{font-size:72px;animation:pop .6s}
+.cheer b{font:600 24px var(--serif)}
+@keyframes pop{0%{transform:scale(.2)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes fade{0%,80%{opacity:1}100%{opacity:0}}

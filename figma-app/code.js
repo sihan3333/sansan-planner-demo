@@ -259,9 +259,15 @@ function aiInput(p, placeholder) {
   return f;
 }
 // 时间轴一行：时间、分类色条、标题、右侧状态
-function slot(p, time, title, cat, right, sub, dim) {
+function tickCircle(on) {
+  const c = fixed(box(on ? '已勾' : '未勾', { fill: on ? C.accent : C.white, radius: 11, align: 'CENTER', cross: 'CENTER', stroke: on ? C.accent : C.line, strokeW: 2 }), 22, 22);
+  if (on) put(c, ico('check', C.white, 14, 3), null);
+  return c;
+}
+function slot(p, time, title, cat, right, sub, dim, tick) {
   const r = box(time + ' ' + title, { dir: 'HORIZONTAL', gap: 10, pad: [9, 0, 9, 0], cross: 'CENTER' });
   put(p, r);
+  if (tick !== undefined) put(r, tick === 'free' ? fixed(box('空', {}), 22, 22) : tickCircle(tick), null);
   const t = fixed(box('时间', { cross: 'MIN' }), 44, 20);
   put(r, t, null);
   put(t, txt(time, 'small', C.ink3), 'HUG');
@@ -319,11 +325,19 @@ function buildV10() {
   // ① 今天
   ({ s, body, tab } = screen('Today', 'A1 今天', 0, 'A', { tab: '今天',
     note: '首页回答三件事：现在该做什么、今天还剩什么、想改就说一句。时间轴每一项右侧显示计划还是实际，已完成的写实际时间。' }));
-  const head = row(body, '日期', 8, 'MAX');
+  const head = row(body, '日期', 8, 'CENTER');
+  put(head, ico('back', C.ink2, 22), null);
   const dc = col(head, '日期文字');
-  put(dc, txt('10月26日', 'date', C.ink));
-  put(dc, txt('星期一 · 今天', 'small', C.ink2));
-  put(head, chip('记录 4/5 项', 'green', 'check'), 'HUG');
+  dc.counterAxisAlignItems = 'CENTER';
+  put(dc, txt('10月26日', 'date', C.ink, 'CENTER'), 'HUG');
+  put(dc, txt('星期一 · 今天', 'small', C.ink2, 'CENTER'), 'HUG');
+  put(head, ico('right', C.ink2, 22), null);
+  const hr = row(body, '记录与日期', 8);
+  put(hr, chip('记录 4/5 项', 'green', 'check'), 'HUG');
+  spacer(hr);
+  const dp = box('跳到某天', { dir: 'HORIZONTAL', gap: 4, pad: [3, 8, 3, 8], fill: C.card, radius: 8, stroke: C.line, cross: 'CENTER' });
+  put(hr, dp, 'HUG');
+  put(dp, txt('2026/10/26', 'tiny', C.ink2), 'HUG'); put(dp, ico('calendar', C.ink2, 12), null);
   const now = card('现在', { fill: C.dark, gap: 8, pad: 16 });
   put(body, now);
   put(now, txt('现在 · 20:00–20:45', 'tiny', C.accentLight2));
@@ -332,15 +346,18 @@ function buildV10() {
   link(put(nr, btn('完成', 'primary', 40, 'check'), 'FILL'), 'Actual');
   link(put(nr, btn('被打断了', 'light', 40), 'FILL'), 'Interrupt');
   link(aiInput(body), 'Preview');
-  const tl = card('时间轴', { gap: 0, pad: [6, 14, 6, 14] });
+  const quick = row(body, '快捷', 6);
+  link(put(quick, btn('排明天', 'light', 30, null, 70), null), 'PlanDay');
+  link(put(quick, btn('随手记', 'light', 30, null, 70), null), 'Voice');
+  put(quick, btn('⟳ 没做完的往后排', 'light', 30, null, 140), null);
+  const tl = card('时间轴', { gap: 0, pad: [4, 14, 4, 14] });
   put(body, tl);
-  slot(tl, '07:00', '起床、洗漱、早餐', C.life, chip('07:10–08:05', 'warn'), '晚开始 10 分钟');
-  slot(tl, '09:00', '上午学习：编程课', C.learn, chip('09:12–11:40', 'warn'), '晚开始 12 分钟');
-  slot(tl, '12:00', '午饭、午休', C.life, chip('没记录', 'gray'));
-  slot(tl, '13:30', '下午工作', C.work, chip('13:30–17:40', 'green'));
-  slot(tl, '20:00', '英语听力', C.learn, chip('进行中', 'learn'), '完成后进度 +50');
-  slot(tl, '20:45', '散步', C.exercise, chip('待开始', 'gray'));
-  slot(tl, '22:00', '睡前阅读', C.learn, chip('待开始', 'gray'), '完成后进度 +20', true);
+  slot(tl, '07:00', '起床、洗漱、早餐', C.life, chip('07:10–08:05', 'warn'), null, false, true);
+  slot(tl, '09:00', '上午学习：编程课', C.learn, chip('09:12–11:40', 'warn'), null, false, true);
+  slot(tl, '12:00', '午饭、午休', C.life, chip('没记录', 'gray'), null, false, false);
+  slot(tl, '13:30', '下午工作', C.work, chip('13:30–17:40', 'green'), null, false, true);
+  slot(tl, '20:00', '英语听力', C.learn, chip('进行中', 'learn'), null, false, false);
+  slot(tl, '20:45', '散步', C.exercise, chip('待开始', 'gray'), null, false, false);
 
   // ② 到点通知
   ({ s, body } = screen('Notify', 'A2 到点通知', 1, 'A', { dark: true, pad: [40, 14, 16, 14], gap: 14,
@@ -530,6 +547,9 @@ function buildV10() {
     progress(k, frac, c);
     put(k, txt(d, 'small', C.ink2));
     if (warn) { const w = row(k, '落后', 6); put(w, chip(warn, 'warn'), 'HUG'); }
+    const ka = row(k, '操作', 8);
+    put(ka, btn('记进度', 'light', 30, null, 70), null);
+    link(put(ka, btn('编辑', 'line', 30, null, 56), null), 'ProjEdit');
   }
 
   // ⑭ 首次使用与数据授权
@@ -679,6 +699,103 @@ async function clearOld(keep) {
   try { for (const c of await figma.variables.getLocalVariableCollectionsAsync()) if (c.name === '三三作息簿 ' + V + ' 颜色') c.remove(); } catch (e) { }
 }
 
+// ---------- 我的日程：编辑与数据 ----------
+function formRow(p, label, value, ph, w) {
+  const r = row(p, label, 8);
+  const l = fixed(box('标签', { cross: 'MIN', align: 'CENTER' }), 64, 32); put(r, l, null);
+  put(l, txt(label, 'small', C.ink2), 'HUG');
+  const f = fixed(box('输入框', { dir: 'HORIZONTAL', pad: [0, 10, 0, 10], fill: C.white, radius: 8, stroke: C.line, cross: 'CENTER' }), w || 200, 34);
+  put(r, f, w ? null : 'FILL');
+  put(f, txt(value || ph || '', 'small', value ? C.ink : C.ink3));
+  return r;
+}
+function buildMore() {
+  let s, body, nav, tab;
+  // A15 今天（往下滑）：发现了几件事、今日学习、添加活动
+  ({ s, body, tab } = screen('TodayMore', 'A15 今天（往下滑）', 7, 'A', { tab: '今天' }));
+  const sg = card('发现了几件事', { gap: 10 });
+  put(body, sg);
+  put(sg, txt('发现了几件事', 'h2'));
+  const sg1 = col(sg, '落后', 6);
+  put(sg1, txt('「编程入门视频课」照每天 1 集，到截止还会差 6 集。', 'small'));
+  const sa1 = row(sg1, '操作', 6); put(sa1, btn('每天提到 1.5 集', 'primary', 30, null, 120), null); put(sa1, btn('推迟到 11月16日', 'line', 30, null, 120), null); put(sa1, btn('忽略', 'line', 30, null, 50), null);
+  divider(sg);
+  const sg2 = col(sg, '模板建议', 6);
+  put(sg2, txt('最近 10 天里，有 7 天你都删掉了「散步」。', 'small'));
+  const sa2 = row(sg2, '操作', 6); put(sa2, btn('从模板里删掉', 'primary', 30, null, 110), null); put(sa2, btn('忽略', 'line', 30, null, 50), null);
+  const ls = card('今日学习', { gap: 8 });
+  put(body, ls);
+  const lh = row(ls, '标题', 8); put(lh, txt('今日学习', 'h2')); put(lh, txt('1/3 完成', 'tiny', C.ink3), 'HUG');
+  progress(ls, 0.33, C.accent);
+  const lc = row(ls, '学习项', 6);
+  put(lc, chip('✓ 上午学习：编程课', 'green'), 'HUG'); put(lc, chip('○ 英语听力', 'gray'), 'HUG'); put(lc, chip('○ 睡前阅读', 'gray'), 'HUG');
+  const tl2 = card('时间轴', { gap: 0, pad: [4, 14, 4, 14] });
+  put(body, tl2);
+  slot(tl2, '22:00', '睡前阅读', C.learn, chip('待开始', 'gray'), '完成后进度 +20', false, false);
+  const sub = row(tl2, '细分', 8); sub.paddingLeft = 32; sub.paddingBottom = 8;
+  put(sub, tickCircle(true), null); put(sub, txt('读第 8 章', 'small'));
+  const fb = row(body, '底部操作', 8);
+  link(put(fb, btn('＋ 添加活动', 'line', 34, null, 110), null), 'EditAct');
+  put(fb, btn('用模板覆盖这天', 'line', 34, null, 130), null);
+
+  // A16 添加活动
+  ({ s, body, nav } = screen('EditAct', 'A16 添加活动', 8, 'A', { nav: '添加活动', back: true }));
+  link(nav.l, 'Today');
+  const f1 = card('表单', { gap: 10 });
+  put(body, f1);
+  formRow(f1, '名称', '复习高数');
+  const kr = row(f1, '类型', 8); const kl = fixed(box('标签', { align: 'CENTER' }), 64, 28); put(kr, kl, null); put(kl, txt('类型', 'small', C.ink2), 'HUG');
+  put(kr, chip('时间段', 'green'), 'HUG'); put(kr, chip('时间点', 'gray'), 'HUG');
+  const tr = row(f1, '时间', 8); const tlb = fixed(box('标签', { align: 'CENTER' }), 64, 28); put(tr, tlb, null); put(tlb, txt('时间', 'small', C.ink2), 'HUG');
+  for (const [i, t] of [[0, '15:00'], [1, '16:00']]) { if (i) put(tr, txt('到', 'small', C.ink2), 'HUG'); const tf = fixed(box('时间', { dir: 'HORIZONTAL', pad: [0, 10, 0, 10], fill: C.white, radius: 8, stroke: C.line, cross: 'CENTER' }), 86, 32); put(tr, tf, null); put(tf, txt(t, 'small'), 'HUG'); }
+  const cr = row(f1, '分类', 6); cr.layoutWrap = 'WRAP'; cr.counterAxisSpacing = 6;
+  const cl = fixed(box('标签', { align: 'CENTER' }), 64, 24); put(cr, cl, null); put(cl, txt('分类', 'small', C.ink2), 'HUG');
+  for (const [n, c] of [['学习', C.learn], ['工作', C.work], ['运动', C.exercise], ['生活', C.life], ['护理', C.care], ['通勤', C.commute]]) {
+    const cc = box('分类/' + n, { dir: 'HORIZONTAL', gap: 4, pad: [2, 8, 2, 8], fill: n === '学习' ? C.accentLight : C.white, radius: 10, stroke: n === '学习' ? C.accent : C.line, cross: 'CENTER' });
+    put(cr, cc, 'HUG'); const dot = figma.createEllipse(); dot.resize(8, 8); dot.fills = solid(c); cc.appendChild(dot); put(cc, txt(n, 'tiny', C.ink), 'HUG');
+  }
+  formRow(f1, '所属大类', '', '可选，同大类合并统计');
+  formRow(f1, '关联项目', '不关联');
+  const rr = row(f1, '提醒', 8); const rl = fixed(box('标签', { align: 'CENTER' }), 64, 28); put(rr, rl, null); put(rl, txt('提醒', 'small', C.ink2), 'HUG');
+  const tg = fixed(box('开关', { dir: 'HORIZONTAL', pad: 2, fill: C.accent, radius: 13, align: 'MAX', cross: 'CENTER' }), 44, 26); put(tg, circ('圆点', 22, C.white), null); put(rr, tg, null);
+  const sb = card('细分安排', { gap: 8 });
+  put(body, sb);
+  const sbh = row(sb, '标题', 8); put(sbh, txt('细分安排', 'h2')); put(sbh, btn('＋ 加一项', 'light', 28, null, 76), null);
+  formRow(sb, '第 1 项', '做 10 道题');
+  spacer(body);
+  const eb = row(body, '按钮', 10);
+  link(put(eb, btn('取消', 'line', 50), 'FILL'), 'Today');
+  link(put(eb, btn('保存', 'primary', 50), 'FILL'), 'Today');
+
+  // A17 新建学习项目
+  ({ s, body, nav } = screen('ProjEdit', 'A17 新建学习项目', 9, 'A', { nav: '新建学习项目', back: true }));
+  link(nav.l, 'Projects');
+  const f2 = card('表单', { gap: 10 });
+  put(body, f2);
+  formRow(f2, '名称', '机器学习课');
+  formRow(f2, '所属大类', '学编程');
+  formRow(f2, '总量', '113');
+  formRow(f2, '单位', '集');
+  formRow(f2, '已经完成', '0');
+  formRow(f2, '每天目标', '', '填了截止日可以留空');
+  formRow(f2, '截止日', '2026/12/20');
+  const tip = card('提示', { fill: C.accentLight, gap: 4 });
+  put(body, tip);
+  put(tip, txt('按截止日算，每天 2.5 集', 'smallB', C.accentDark));
+  spacer(body);
+  const pb = row(body, '按钮', 10);
+  link(put(pb, btn('取消', 'line', 50), 'FILL'), 'Projects');
+  link(put(pb, btn('保存', 'primary', 50), 'FILL'), 'Projects');
+
+  // A18 数据
+  ({ s, body, nav } = screen('Data', 'A18 数据', 10, 'A', { nav: '数据', back: true }));
+  for (const [t, d, b, k] of [['备份', '把模板、每天的日程、学习项目和收件箱存成一个文件。', '导出备份文件', 'primary'], ['恢复', '用之前导出的备份文件覆盖现在的数据。', '选择备份文件', 'line'], ['示例数据', '清空现在的数据，换回示例数据。', '恢复示例数据', 'line']]) {
+    const c = card(t, { gap: 8 });
+    put(body, c);
+    put(c, txt(t, 'h2')); put(c, txt(d, 'small', C.ink2)); put(c, btn(b, k, 44));
+  }
+}
+
 async function main() {
   F = await pickFonts();
   for (const f of [F.r, F.b, F.sr, F.sb]) await figma.loadFontAsync(f);
@@ -691,6 +808,7 @@ async function main() {
 
   rowTitle('记录与安排', ROWS.A - 80);
   buildV10();
+  buildMore();
   rowTitle('复盘、优化与更多工具', ROWS.C - 80);
   buildV11();
   buildV12();
@@ -703,7 +821,7 @@ async function main() {
   }
   try { page.flowStartingPoints = [{ nodeId: S.Welcome.id, name: '首次使用' }, { nodeId: S.Today.id, name: '今天' }, { nodeId: S.Notify.id, name: '到点通知' }]; } catch (e) { }
   figma.viewport.scrollAndZoomIntoView(page.children);
-  figma.closePlugin('三三作息簿 App 原型已生成：21 屏' + (fails ? `（${fails} 个跳转没设上）` : ''));
+  figma.closePlugin('三三作息簿 App 原型已生成：25 屏' + (fails ? `（${fails} 个跳转没设上）` : ''));
 }
 main().catch(async e => {
   // 出错时把原因写在画布上，方便排查

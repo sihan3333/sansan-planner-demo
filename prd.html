@@ -12,9 +12,9 @@ td img.thumb{width:110px;border:1px solid var(--line);border-radius:8px;display:
 .v{display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;font-weight:600}
 .v10{background:#E3EED3;color:#3E5A1C}.v11{background:#E3E9F5;color:#38538C}.v12{background:#F6ECD2;color:#8A6A1F}
 </style></head><body class="document"><main>
-<a href="index.html">← App 版 Demo</a> · <a href="web.html">网页版 Demo</a> · <a href="eval/REPORT_user.md">真实说法评测报告</a>
+<a href="index.html">← 返回 App</a> · <a href="eval/REPORT_user.md">真实说法评测报告</a>
 <h1>三三作息簿 App V1.0 产品需求文档</h1>
-<p class="muted">负责人：郑思涵 · 更新：2026-10-26 · 状态：评审中 · 原型图取自 Figma「三三作息簿 App 原型」，共 21 屏</p>
+<p class="muted">负责人：郑思涵 · 更新：2026-10-26 · 状态：评审中 · 原型图取自 Figma「三三作息簿 App 原型」，共 25 屏</p>
 
 <h2>1. 需求背景</h2>
 <h3>1.1 业务背景与数据现状</h3>
@@ -24,17 +24,17 @@ td img.thumb{width:110px;border:1px solid var(--line);border-radius:8px;display:
 <tr><td>真实说法里的需求</td><td>10 位同学写的 100 句改日程说法中，89% 超出单日时间轴的能力，其中跨天 49 句、标记完成 19 句、昨日顺延 8 句</td><td><a href="eval/REPORT_user.md">网页版真实说法评测报告</a></td></tr>
 <tr><td>AI 理解准确率</td><td>补上跨天、标记完成、昨日顺延后，能力范围内 60 句 DeepSeek 全对 52 句；超出能力的 40 句里 37 句不乱改</td><td><a href="eval/REPORT_user.md">同上，第二轮</a></td></tr>
 </table>
-<p>工作和学习并行的人，日程变动频繁。网页版已经能按模板生成每天的时间轴、用一句话改日程，但有三个问题：</p>
+<p>工作和学习并行的人，日程变动频繁，现有做法有三个问题：</p>
 <ol>
-<li><b>手机上不好用。</b>到点不会提醒，不能在通知里打勾，桌面上看不到现在该做什么。</li>
-<li><b>只有计划，没有实际。</b>做没做、什么时候做的都没有记录，「发现了几件事」只能从修改记录里猜。</li>
-<li><b>AI 用得少。</b>AI 只做一件事：把一句话翻译成改日程的指令；记录、优化、安排三个环节里，后两个基本没有 AI。</li>
+<li><b>手机上用不顺手。</b>常见的日历和待办到点只是一条提醒，不能顺手记下做了没有，桌面上也看不到现在该做什么。</li>
+<li><b>只有计划，没有实际。</b>做没做、什么时候做的没有记录，想优化作息也没有依据。</li>
+<li><b>安排和调整靠手动。</b>临时变动要一项项拖动，长期学习目标也没法自动拆到每一天。</li>
 </ol>
 
 <h3>1.2 内外部情况</h3>
 <h4>内部现状</h4>
 <ul>
-<li>已上线<a href="web.html">网页版</a>：基础模板、24 小时时间轴、学习项目与打勾推进度、一句话改日程（支持跨天、标记完成、昨日顺延）、发现了几件事。</li>
+<li>已上线 <a href="index.html">App</a>：基础模板、日程时间轴、学习项目与打勾推进度、一句话改日程（支持跨天、标记完成、昨日顺延）、发现了几件事、计划 vs 实际、任务收件箱；按真实时间运行，数据存在本机，另有带引导的体验演示。</li>
 <li>已完成指令解析评测：种子用例 60 条、真实说法 100 条；数据后端与看板记录「一次就对」率、采纳率、撤销率。</li>
 <li>已有 Cloudflare Worker 中转 DeepSeek，可复用；同一中转已接通义千问 VL 看图模型。</li>
 </ul>
@@ -101,7 +101,7 @@ flowchart LR
 <tr><td>语音随手记：一句话改实际记录，后面的计划按规则让位</td><td>P1</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>截图导入：课表、群通知、作业要求读出时间和事项</td><td>P2</td><td>新增</td><td><span class="v v12">V1.2</span></td></tr>
 <tr><td>每晚 1 分钟复盘：最多 3 个问题，整理成当天小结</td><td>P2</td><td>新增</td><td><span class="v v12">V1.2</span></td></tr>
-<tr><td rowspan="5">安排</td><td>一句话改日程：沿用网页版，入口扩展到通知回复和语音</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td rowspan="5">安排</td><td>一句话改日程：支持跨天、标记完成、昨日顺延，入口包括输入框、语音和通知回复</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>一句话排一天：拆成任务、估计时长，规则排进空档</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>任务收件箱：想到就丢进去，按截止日和空档给出放置建议</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>被打断一键重排：选耽误多久，沿用顺延规则</td><td>P1</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
@@ -111,16 +111,19 @@ flowchart LR
 <tr><td>时长校准：用实际记录算同类任务平均时长</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
 <tr><td>目标可行性：按实际每天可用时间判断能否按期完成</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
 <tr><td>每周报告：上周小结和下周模板建议，采纳前先预览</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
-<tr><td rowspan="6">基础</td><td>到点通知：一个活动只推 1 条，顺带问上一项；每天上限 8 条</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td rowspan="8">基础</td><td>到点通知：一个活动只推 1 条，顺带问上一项；每天上限 8 条</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>通知里直接回复一句话改日程</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>桌面小组件：现在该做、下一项、今日学习进度，可直接打勾</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>日期切换：前后翻日期、跳到某天、回到今天</td><td>P0</td><td>沿用</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>活动编辑：添加、修改、删除活动；时间段或时间点、分类、所属大类、关联学习项目、细分安排、提醒</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>基础模板：每项可设提醒，显示每天提醒总数</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>学习项目：进度、每日目标、落后提醒</td><td>P0</td><td>沿用</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>专注计时：结束时写入实际时长并推进学习进度</td><td>P2</td><td>新增</td><td><span class="v v12">V1.2</span></td></tr>
-<tr><td rowspan="4">服务端与数据</td><td>首次使用：本地存储、不需账号；通知、语音、匿名统计分别授权</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td rowspan="5">服务端与数据</td><td>首次使用：本地存储、不需账号；通知、语音、匿名统计分别授权</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>大模型中转：DeepSeek 文字、通义千问 VL 看图，密钥不进 App</td><td>P0</td><td>沿用</td><td><span class="v v10">V1.0</span></td></tr>
 <tr><td>排程规则引擎：顺延、压缩、移出、空档放置、目标计算</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
-<tr><td>云同步与网页版互通，开启时登录</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
+<tr><td>数据：导出、导入备份文件，恢复示例数据</td><td>P1</td><td>沿用</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>云同步与多设备互通，开启时登录</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
 </table>
 
 <h2>4. 需求详情</h2>
@@ -156,6 +159,8 @@ stateDiagram-v2
 <div class="shots"><figure><img src="prd-img/a8.png" alt="A8 一句话排一天"><figcaption>A8 一句话排一天</figcaption></figure><figure><img src="prd-img/a9.png" alt="A9 任务收件箱"><figcaption>A9 任务收件箱</figcaption></figure></div>
 <p class="state">基础：模板、学习项目、首次使用</p>
 <div class="shots"><figure><img src="prd-img/a12.png" alt="A12 基础模板"><figcaption>A12 基础模板</figcaption></figure><figure><img src="prd-img/a13.png" alt="A13 学习项目"><figcaption>A13 学习项目</figcaption></figure><figure><img src="prd-img/a14.png" alt="A14 首次使用与数据授权"><figcaption>A14 首次使用</figcaption></figure></div>
+<p class="state">编辑与数据</p>
+<div class="shots"><figure><img src="prd-img/a15.png" alt="A15 今天（往下滑）"><figcaption>A15 今天（往下滑）</figcaption></figure><figure><img src="prd-img/a16.png" alt="A16 添加活动"><figcaption>A16 添加活动</figcaption></figure><figure><img src="prd-img/a17.png" alt="A17 新建学习项目"><figcaption>A17 新建学习项目</figcaption></figure><figure><img src="prd-img/a18.png" alt="A18 数据"><figcaption>A18 数据</figcaption></figure></div>
 <p class="state">V1.1 优化</p>
 <div class="shots"><figure><img src="prd-img/b1.png" alt="B1 每周报告"><figcaption>B1 每周报告</figcaption></figure><figure><img src="prd-img/b2.png" alt="B2 精力时段"><figcaption>B2 精力时段</figcaption></figure><figure><img src="prd-img/b3.png" alt="B3 时长校准与目标可行性"><figcaption>B3 时长校准与可行性</figcaption></figure></div>
 <p class="state">V1.2 录入与长期目标</p>
@@ -214,7 +219,7 @@ flowchart TB
 <h4>传统功能</h4>
 <table>
 <tr><th>页面板块</th><th>交互样式</th><th>功能详述</th></tr>
-<tr><td>今天</td><td><img class="thumb" src="prd-img/a1.png" alt=""></td><td>顶部日期和记录覆盖数；「现在」卡片显示当前活动，可完成或被打断；一句话输入栏带语音；时间轴每项按分类着色，已完成的显示实际时间，有偏差时标出。</td></tr>
+<tr><td>今天</td><td><img class="thumb" src="prd-img/a1.png" alt=""></td><td>顶部可以前后翻日期、跳到某天，显示记录覆盖数；「现在」卡片显示当前活动，可开始、完成或被打断；一句话输入栏带语音，下方有排明天、随手记、没做完的往后排；时间轴每项左边打勾，按分类着色，已完成的显示实际时间，有偏差时标出；连续 1 小时以上没有安排标为空闲，时间重叠时提示。</td></tr>
 <tr><td>到点通知</td><td><img class="thumb" src="prd-img/a2.png" alt=""></td><td>只推标了提醒的活动；按钮为开始、晚 15 分钟、跳过；顺带问上一项做完没有；睡眠时段不推，每天上限 8 条；连续 3 次不响应同一类，询问是否关掉。</td></tr>
 <tr><td>桌面小组件</td><td><img class="thumb" src="prd-img/a11.png" alt=""></td><td>中号显示现在该做和下一项，可直接打勾写入实际记录；小号显示今日学习进度。</td></tr>
 <tr><td>晚间核对</td><td><img class="thumb" src="prd-img/a5.png" alt=""></td><td>每晚 1 条推送；没记录的活动逐项选做了、没做、改时间，一起确认；不核对也不追问。</td></tr>
@@ -222,6 +227,10 @@ flowchart TB
 <tr><td>被打断一键重排</td><td><img class="thumb" src="prd-img/a10.png" alt=""></td><td>选 15、30、45 分钟或 1 小时；按顺延规则预览后面的调整，确认才写入。</td></tr>
 <tr><td>基础模板</td><td><img class="thumb" src="prd-img/a12.png" alt=""></td><td>新的一天按模板生成；每项用铃铛设提醒，顶部显示每天提醒总数和上限。</td></tr>
 <tr><td>学习项目</td><td><img class="thumb" src="prd-img/a13.png" alt=""></td><td>进度条、每日目标、截止日；落后时给出提高每天目标或推迟截止两个选项。</td></tr>
+<tr><td>今天（往下滑）</td><td><img class="thumb" src="prd-img/a15.png" alt=""></td><td>发现了几件事：落后的学习项目给出提高每天目标或推迟截止两个选项，根据最近两周修改记录给出模板建议，可以忽略，7 天内不再提；今日学习按所属大类汇总，全部完成时庆祝；活动下面可以展开细分安排，分别打勾；底部添加活动、用模板覆盖这天（二次确认）。</td></tr>
+<tr><td>添加活动</td><td><img class="thumb" src="prd-img/a16.png" alt=""></td><td>名称、时间段或时间点、开始和结束时间、分类、所属大类、关联学习项目与完成一次推进多少、提醒开关；可以加细分安排；编辑时可以删除。在基础模板里添加的，以后每天都会带上。</td></tr>
+<tr><td>新建学习项目</td><td><img class="thumb" src="prd-img/a17.png" alt=""></td><td>名称、所属大类、总量、单位、已经完成、每天目标、截止日；填了截止日、没填每天目标时，按剩余量 ÷ 剩余天数算出每天目标；学习页可以手动记一次进度。</td></tr>
+<tr><td>数据</td><td><img class="thumb" src="prd-img/a18.png" alt=""></td><td>导出备份文件（模板、每天的日程、学习项目、收件箱、提醒设置、实际记录）；用备份文件恢复（二次确认）；恢复示例数据（二次确认）。</td></tr>
 <tr><td>首次使用</td><td><img class="thumb" src="prd-img/a14.png" alt=""></td><td>说明日程只存在手机里；通知、语音识别、匿名统计分别授权，都可以不开。</td></tr>
 </table>
 <h4>AI 相关功能</h4>
