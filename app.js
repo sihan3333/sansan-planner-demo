@@ -226,8 +226,11 @@
     var sample = '刚才数据分析多做了半小时，后面都顺延';
     return sbar() + nav('随手记', 'today') + '<div class="body" style="align-items:center;text-align:center"><div style="height:40px"></div>' +
       '<div style="width:130px;height:130px;border-radius:50%;background:var(--accent-l);box-shadow:0 0 0 12px var(--accent-l2);display:grid;place-items:center;color:var(--accent-dark)">' + IC.mic.replace(/18/g, '54') + '</div>' +
-      '<div class="h2" style="margin-top:18px">' + (S.listening ? '正在听…' : '说一句发生了什么') + '</div><div class="sm">语音在手机上转成文字，只把文字发给 AI</div>' +
-      '<div style="flex:1"></div><button class="btn primary full" data-act="listen">' + IC.mic + '按一下开始说</button>' +
+      '<div class="h2" style="margin-top:18px">' + (S.listening ? '正在听…说完再按一下' : '说一句发生了什么') + '</div><div class="sm">语音在手机上转成文字，只把文字发给 AI</div>' +
+      (S.voiceText ? '<div class="said" style="margin-top:12px">' + esc(S.voiceText) + '</div>' : '') +
+      (S.voiceMsg ? '<div class="card warnc sm" style="margin-top:12px;text-align:left">' + esc(S.voiceMsg) + '</div>' : '') +
+      (S.msg ? '<div class="sm" style="color:var(--warn)">' + esc(S.msg) + '</div>' : '') +
+      '<div style="flex:1"></div><button class="btn primary full" data-act="listen">' + IC.mic + (S.listening ? '说完了' : '按一下开始说') + '</button>' +
       '<button class="btn line full" data-say="' + sample + '" data-title="随手记">用示例：“' + sample + '”</button></div>';
   };
   SCREENS.interrupt = function(){
@@ -562,15 +565,35 @@
     S.inbox = S.inbox.filter(function(i){ return i.id !== id; });
     openPlan('收件箱：' + x.title + '（约 ' + x.minutes + ' 分钟' + (x.due ? '，' + x.due : '') + '）', '放进日程', res, 'inbox');
   }
+  // 浏览器自带语音识别：边说边显示；出错时说清原因，并保留示例句子作为备用
+  var rec = null;
+  var VOICE_ERR = {
+    'not-allowed':'没有麦克风权限：点地址栏左边的图标，允许使用麦克风后再试。',
+    'service-not-allowed':'浏览器不允许使用语音识别服务，可以换 Edge 试试，或者点下面的示例。',
+    'network':'语音识别服务连不上。Chrome 的语音识别要连谷歌服务器，国内常常连不上；可以换 Edge 打开，或者点下面的示例。',
+    'no-speech':'没听到声音：检查一下麦克风，再按一次说。',
+    'audio-capture':'没找到麦克风：检查一下电脑的麦克风设置。'
+  };
   function listen(){
+    if(rec){ rec.stop(); return; } // 正在听时再按一下就结束
     var R = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if(!R){ toast('当前浏览器不支持语音识别，可以点下面的示例'); return; }
+    if(!R){ S.voiceMsg = '当前浏览器不支持语音识别，可以用 Chrome 或 Edge 打开，或者点下面的示例。'; return render(); }
+    var heard = '', failed = false;
     try{
-      var r = new R(); r.lang = 'zh-CN'; r.interimResults = false;
-      r.onresult = function(ev){ S.listening = false; understand(ev.results[0][0].transcript, '随手记'); };
-      r.onerror = r.onend = function(){ if(S.listening){ S.listening = false; render(); } };
-      S.listening = true; render(); r.start();
-    }catch(err){ S.listening = false; toast('语音识别启动失败，可以点下面的示例'); }
+      rec = new R(); rec.lang = 'zh-CN'; rec.interimResults = true; rec.continuous = false;
+      rec.onresult = function(ev){
+        heard = ''; for(var k = 0; k < ev.results.length; k++) heard += ev.results[k][0].transcript;
+        S.voiceText = heard; render();
+      };
+      rec.onerror = function(ev){ failed = true; S.voiceMsg = VOICE_ERR[ev.error] || ('语音识别出错（' + ev.error + '），可以点下面的示例。'); };
+      rec.onend = function(){
+        rec = null; S.listening = false;
+        if(heard.trim()){ S.voiceMsg = ''; S.voiceText = ''; understand(heard, '随手记'); return; }
+        if(!failed) S.voiceMsg = '没听清，再按一次说，或者点下面的示例。';
+        render();
+      };
+      S.listening = true; S.voiceText = ''; S.voiceMsg = ''; render(); rec.start();
+    }catch(err){ rec = null; S.listening = false; S.voiceMsg = '语音识别启动失败，可以点下面的示例。'; render(); }
   }
 
   // ---------- 启动：等规则引擎加载 ----------
