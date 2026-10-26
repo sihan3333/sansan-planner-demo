@@ -89,7 +89,7 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-faint);line-height:1.7;}
         <option value="30" selected>最近 30 天</option>
         <option value="90">最近 90 天</option>
       </select>
-      <label><input type="checkbox" id="sim"> 包含模拟数据</label>
+      <label><input type="checkbox" id="sim" checked> 包含模拟数据</label>
       <span class="live" id="live">每 5 秒自动刷新</span>
     </div>
   </header>
@@ -225,7 +225,7 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-faint);line-height:1.7;}
     var n = $('notice');
     if(!d.include_sim && d.event_counts.real===0){
       n.className = 'notice'; n.hidden = false;
-      n.textContent = '还没有真实使用数据：在本地打开作息簿（http://localhost:8000）用一用 AI 改日程，这里会自动更新。也可以勾选「包含模拟数据」先看看看板效果。';
+      n.textContent = '还没有真实使用数据。勾选「包含模拟数据」可以看看板效果。';
     } else if(d.include_sim){
       n.className = 'notice sim'; n.hidden = false;
       n.textContent = '当前包含模拟数据（'+d.event_counts.simulated+' 条），只用于展示看板效果，不代表真实用户行为。真实数据 '+d.event_counts.real+' 条。';

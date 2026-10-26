@@ -1,0 +1,19 @@
+# 部署：npx wrangler deploy（在本文件夹里运行）
+name = "sansan-data"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+account_id = "2a5c6676b9e5ce5525df6a5de01ae72f"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://sihan3333.github.io,http://localhost:8000,http://127.0.0.1:8000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sansan-data"
+database_id = "427fb4ce-9a5d-4538-beec-c7c9664c3b86"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true

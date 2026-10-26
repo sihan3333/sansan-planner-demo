@@ -51,6 +51,17 @@
 - **待复盘样本**：被取消、被撤销、没听懂、采纳后又手动改的原话列表，用来归类错误、迭代提示词和规则，并作为回归测试集。
 - **隐私**：只用随机生成的匿名 ID，不记录身份信息。App 现在是纯演示，不再发送使用事件；看板可以用下面的模拟数据查看效果。
 
+在线看板：<https://sansan-data.sihanzheng68.workers.dev/dashboard>（默认显示模拟数据，模拟数据的日期会自动平移到最近 14 天）。
+
+线上版在 `backend/worker/`：Cloudflare Worker + D1 数据库，接口和本地版相同（`/api/events`、`/api/stats`、`/dashboard`）。更新部署：
+
+```bash
+cd backend/worker
+npx wrangler deploy
+```
+
+第一次部署时用 `npx wrangler d1 execute sansan-data --remote --file schema.sql` 建表。
+
 本地运行：
 
 ```bash
