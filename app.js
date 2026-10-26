@@ -1,5 +1,5 @@
-// 三三作息簿 App
-// 两种模式：「我的日程」按真实时间运行、数据存在这个浏览器里；「体验演示」用示例数据和模拟时间，带引导。
+// 三三作息簿 App 版 Demo
+// 示例数据、模拟时间，带引导情景；页面刷新后回到示例数据。
 // 理解一句话和排程复用 engine.html 里的同一套规则（隐藏 iframe 加载，只计算不写入）。
 (function(){
   'use strict';
@@ -16,8 +16,6 @@
   var WEEK = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
   var AI_ENDPOINT = 'https://sansan-ai.sihanzheng68.workers.dev';
   var PUSH_LIMIT = 8, EVENING = 21 * 60 + 45;
-  var KEYS = {tpl:'zuoxibu_template_v1', days:'zuoxibu_days_v1', proj:'zuoxibu_projects_v1', dismissed:'zuoxibu_dismissed_v1',
-              inbox:'sansan_app_inbox_v1', remind:'sansan_app_remind_v1', actual:'sansan_app_actual_v1', perm:'sansan_app_perm_v1', mode:'sansan_app_mode_v1'};
   // 示例的一天：[名称, 开始, 结束, 分类, 关联学习项目, 完成一次推进多少]
   var TEMPLATE = [
     ['睡觉', '00:00', '07:00', 'sleep'], ['起床、洗漱、早餐', '07:00', '08:00', 'life'], ['上午学习：编程课', '09:00', '11:30', 'learn', 'demo-coding', 1],
@@ -31,90 +29,24 @@
   ];
   var CHEERS = ['今天真棒！', '了不起，今天满分！', '学习力爆棚的一天！', '坚持就是胜利！', '今天的你闪闪发光！', '圆满的一天，为自己鼓掌！', '一步一步，你真的在变好。'];
 
-  var E = null, S = null, toastTimer, clockTimer;
-  var notified = {};
+  var E = null, S = null, toastTimer;
 
-  // ---------- 使用数据：只在本机运行时发给自己的后端（backend/），不记录身份信息 ----------
-  var EVENTS_ENDPOINT = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8001/api/events' : '';
-  var ANON_ID = (function(){
-    var t = (location.search.match(/[?&]tester=([\w-]{1,20})/) || [])[1];
-    if(t) return 'tester-' + t;
-    try{
-      var v = localStorage.getItem('zuoxibu_anon_id');
-      if(!v){ v = 'u-' + Math.random().toString(36).slice(2, 10); localStorage.setItem('zuoxibu_anon_id', v); }
-      return v;
-    }catch(e){ return 'u-anon'; }
-  })();
-  var eventQueue = [], eventTimer = null, snapTimer = null;
-  function track(type, payload){
-    if(!EVENTS_ENDPOINT || !S || S.mode !== 'real') return;
-    eventQueue.push({type:type, ts:new Date().toISOString(), data:payload || {}});
-    clearTimeout(eventTimer); eventTimer = setTimeout(flushEvents, 800);
-  }
-  function flushEvents(){
-    if(!EVENTS_ENDPOINT || !eventQueue.length) return;
-    var batch = eventQueue.splice(0, 50);
-    try{ fetch(EVENTS_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({anon_id:ANON_ID, events:batch}), keepalive:true}).catch(function(){}); }catch(e){}
-  }
-  window.addEventListener('pagehide', flushEvents);
-  function snapshot(key){
-    if(!EVENTS_ENDPOINT || !S || S.mode !== 'real') return;
-    clearTimeout(snapTimer);
-    snapTimer = setTimeout(function(){
-      var list = S.days[key]; if(!list || key > S.today) return;
-      var nowM = key === S.today ? now() : 1440;
-      track('day_snapshot', {date:key, items:list.map(function(a){ return {name:a.name, cat:a.cat, start:a.start, end:a.end, done:isComplete(a), due:toMin(a.end) <= nowM}; })});
-    }, 1500);
-  }
-
-  // ---------- 存储（只在「我的日程」模式） ----------
-  var load = function(k, d){ try{ var r = localStorage.getItem(k); return r ? JSON.parse(r) : d; }catch(e){ return d; } };
-  function save(){
-    if(!S || S.mode !== 'real') return;
-    try{
-      localStorage.setItem(KEYS.tpl, JSON.stringify(S.template));
-      localStorage.setItem(KEYS.days, JSON.stringify(S.days));
-      localStorage.setItem(KEYS.proj, JSON.stringify(S.projects));
-      localStorage.setItem(KEYS.dismissed, JSON.stringify(S.dismissed));
-      localStorage.setItem(KEYS.inbox, JSON.stringify(S.inbox));
-      localStorage.setItem(KEYS.remind, JSON.stringify(S.remind));
-      localStorage.setItem(KEYS.actual, JSON.stringify(S.actual));
-      localStorage.setItem(KEYS.perm, JSON.stringify(S.perm));
-    }catch(e){ toast('浏览器存储已满，最近的修改没能保存'); }
-    snapshot(S.sel);
-  }
   var tplFrom = function(rows){ return rows.map(function(r){ return {id:uid(), name:r[0], start:r[1], end:r[2], cat:r[3], kind:'range', group:'', projectId:r[4] || '', amount:r[5] || 0, done:false, subs:[]}; }); };
   var defaultRemind = function(tpl){ var o = {}; tpl.forEach(function(a){ if(a.cat === 'learn' || a.cat === 'work') o[a.name] = true; }); return o; };
-  function baseState(mode){
-    return {mode:mode, min:0, today:E.today(), sel:E.today(), template:[], days:{}, projects:[], inbox:[], remind:{}, actual:{}, perm:{notify:true, voice:true, stats:false},
+  function baseState(){
+    return {min:0, today:E.today(), sel:E.today(), template:[], days:{}, projects:[], inbox:[], remind:{}, actual:{}, perm:{notify:true, voice:true, stats:false},
             dismissed:{}, notifs:[], pushed:0, snooze:{}, view:'app', screen:'today', plan:null, undo:null, flash:{}, reply:null, evening:{}, busy:false, msg:'',
-            edit:null, projEdit:null, progFor:null, split:null, dayText:'', voiceText:'', voiceMsg:'', listening:false, sc:'remind', step:0, lastApplied:null};
-  }
-  function freshReal(){
-    S = baseState('real');
-    var tpl = load(KEYS.tpl, null);
-    if(tpl && tpl.length){
-      S.template = tpl; S.days = load(KEYS.days, {}); S.projects = load(KEYS.proj, E.sample().projects);
-      S.inbox = load(KEYS.inbox, []); S.remind = load(KEYS.remind, defaultRemind(tpl));
-    } else {
-      // 第一次打开：示例模板、10 天示例记录和示例学习项目，可以在「我的 → 数据」里清空
-      S.template = tplFrom(TEMPLATE); S.days = E.sampleHistory(S.template); S.projects = E.sample().projects;
-      S.inbox = clone(SAMPLE_INBOX); S.remind = defaultRemind(S.template);
-    }
-    S.actual = load(KEYS.actual, {}); S.perm = load(KEYS.perm, S.perm); S.dismissed = load(KEYS.dismissed, {});
-    S.min = realNow();
-    save();
+            edit:null, projEdit:null, progFor:null, split:null, dayText:'', voiceText:'', voiceMsg:'', listening:false, sc:'remind', step:0};
   }
   function freshDemo(sc){
-    S = baseState('demo');
+    S = baseState();
     S.template = tplFrom(TEMPLATE); S.days = {}; S.projects = clone(E.sample().projects); S.inbox = clone(SAMPLE_INBOX);
     S.remind = defaultRemind(S.template); S.min = 19 * 60 + 50; S.sc = sc || 'remind';
     // 今天 19:50 之前已经发生的实际记录（示例）；午饭没记录
     var seed = {'起床、洗漱、早餐':['07:10','08:05'], '上午学习：编程课':['09:12','11:40'], '下午工作':['13:30','17:40'], '晚饭':['18:05','18:50']};
     dayList(S.today).forEach(function(a){ if(seed[a.name]) setRec(S.today, a, {status:'done', start:seed[a.name][0], end:seed[a.name][1]}, true); });
   }
-  var realNow = function(){ var d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-  var now = function(){ return S.mode === 'real' ? realNow() : S.min; };
+  var now = function(){ return S.min; };
 
   // ---------- 一天的数据 ----------
   function cloneTpl(){ return S.template.map(function(a){ return {id:uid(), name:a.name, start:a.start, end:a.end, cat:a.cat, kind:a.kind || 'range', group:a.group || '', projectId:a.projectId || '', amount:a.amount || 0, done:false, subs:(a.subs || []).map(function(s){ return {id:uid(), name:s.name, start:s.start, end:s.end, done:false}; })}; }); }
@@ -130,7 +62,6 @@
     if(rec && rec.status === 'done') a.done = true;
     if(rec && rec.status === 'skip') a.done = false;
     if(!rec) a.done = false;
-    if(!silentDone) track('activity_toggled', {date:key, name:a.name, cat:a.cat, start:a.start, end:a.end, done:!!a.done, at:hhmm(now())});
   }
   function statusOf(a, key){
     key = key || S.sel;
@@ -160,7 +91,6 @@
   function toggle(key, a){
     if(isComplete(a)){ a.subs.forEach(function(s){ s.done = false; }); setRec(key, a, null); }
     else finish(key, a);
-    save();
   }
   function credited(pid){
     var sum = 0;
@@ -200,11 +130,9 @@
     var t = now(), list = dayList(S.today);
     list.forEach(function(a){
       if(!tracked(a) || !S.remind[a.name] || recOf(S.today, a) || isComplete(a)) return;
-      var at = S.snooze[a.id] || toMin(a.start), id = S.today + a.id + at;
-      if(S.mode === 'demo' ? at === t : (t >= at && t < at + 2 && !notified[id])){ notified[id] = true; pushStart(a); }
+      if((S.snooze[a.id] || toMin(a.start)) === t) pushStart(a);
     });
-    var ek = S.today + 'evening';
-    if(S.mode === 'demo' ? t === EVENING : (t >= EVENING && t < EVENING + 2 && !notified[ek])){ notified[ek] = true; pushEvening(); }
+    if(t === EVENING) pushEvening();
   }
   function pushStart(a){
     if(S.pushed >= PUSH_LIMIT) return;
@@ -212,18 +140,11 @@
     var prev = dayList(S.today).filter(function(b){ var r = recOf(S.today, b); return tracked(b) && S.remind[b.name] && toMin(b.start) < toMin(a.start) && !isComplete(b) && (!r || r.status === 'running'); }).pop();
     S.notifs = S.notifs.filter(function(n){ return n.type !== 'start'; });
     S.notifs.unshift({type:'start', id:a.id, prev:prev ? prev.id : null, at:now()});
-    if(S.mode === 'demo'){ S.view = 'lock'; S.reply = null; emit('notify'); }
-    else systemNotify(a.name + ' ' + a.start + '–' + a.end + '，开始了吗？', prev ? '上一项「' + prev.name + '」做完了吗？' : '点开记录一下');
+    S.view = 'lock'; S.reply = null; emit('notify');
   }
   function pushEvening(){
     S.notifs.unshift({type:'evening', at:now()});
-    if(S.mode === 'demo'){ S.view = 'lock'; emit('evening'); }
-    else systemNotify('今天的核对', '还有 ' + (coverage().past - coverage().rec) + ' 项没记录，睡前花 30 秒勾一下？');
-  }
-  function systemNotify(title, body){
-    toast(title);
-    if(!S.perm.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
-    try{ var n = new Notification('三三作息簿 · ' + title, {body:body, tag:'sansan'}); n.onclick = function(){ window.focus(); S.view = 'app'; go('today'); }; }catch(e){}
+    S.view = 'lock'; emit('evening');
   }
 
   // ---------- 引擎 ----------
@@ -232,13 +153,11 @@
     text = (text || '').trim();
     if(!text || S.busy) return;
     S.busy = true; S.msg = '正在理解你的意思…'; render();
-    var t0 = Date.now(), view = S.screen === 'template' ? 'template' : 'day';
+    var view = S.screen === 'template' ? 'template' : 'day';
     E.understand(text, data(view), now()).then(function(res){
       S.busy = false; S.msg = '';
       res = clone(res);
-      track('ai_request', {text:text, source:res.source, view:view, n_ops:res.changes.length, reply:res.reply || '', latency_ms:Date.now() - t0});
       if(!res.changes.length){
-        track('ai_no_ops', {text:text, source:res.source, reply:res.reply || ''});
         S.msg = res.warnings.join(' ') || res.reply || '没找到要改的内容，换个说法试试。'; render(); return;
       }
       if(then) return then(res);
@@ -247,11 +166,10 @@
   }
   function openPlan(text, title, res, back, extra){
     S.plan = {id:uid(), text:text, title:title, res:res, back:back || (S.screen === 'plan' ? 'today' : S.screen), extra:extra || {}};
-    track('plan_shown', {plan_id:S.plan.id, text:text, source:res.source, n_changes:res.changes.length});
     S.view = 'app'; S.screen = 'plan';
     emit('plan'); render();
   }
-  function applyRes(res, planId, text){
+  function applyRes(res){
     var before = {days:clone(S.days), template:clone(S.template), projects:clone(S.projects)};
     var flash = {};
     res.changes.forEach(function(c){ if(c.id) flash[c.id] = true; });
@@ -264,17 +182,11 @@
     if(res.template) S.template = sortDay(res.template);
     if(res.projects) S.projects = res.projects;
     S.flash = flash;
-    S.lastApplied = {id:planId, at:Date.now()};
-    track('plan_applied', {plan_id:planId, text:text, source:res.source, n_changes:res.changes.length});
-    save();
     setTimeout(function(){ S.flash = {}; render(); }, 2500);
     toast('已更新 ' + res.changes.length + ' 项', function(){
       S.days = before.days; S.template = before.template; S.projects = before.projects;
-      track('plan_undone', {plan_id:planId, text:text}); save(); render();
+      render();
     });
-  }
-  function noteManualEdit(){
-    if(S.lastApplied && Date.now() - S.lastApplied.at < 5 * 60000){ track('edit_after_ai', {plan_id:S.lastApplied.id}); S.lastApplied = null; }
   }
   var CHG = {add:'新增', move:'调整', shrink:'压缩', remove:'删除', drop:'移出', done:'完成', undone:'取消完成', 'proj-add':'新项目', 'proj-progress':'记进度', 'proj-update':'改项目', 'proj-remove':'删项目'};
 
@@ -615,7 +527,7 @@
       {text:'手机锁屏收到提醒。点通知里的【开始】。', target:'[data-act=nStart]', wait:'started'},
       {text:'实际开始时间记下了。点上方的【App】回到 App。', target:'[data-view=app]', wait:'view:app'},
       {text:'首页「现在」卡片显示英语听力进行中。假设听完了，点【完成】。', target:'[data-act=finish]', wait:'finished'},
-      {text:'点底部【我的】→【计划 vs 实际】，看看今天记了什么。', target:'[data-go=me]', wait:'go:actual'},
+      {text:'点底部【我的】→【计划 vs 实际】，看看今天记了什么。', target:'[data-go=me]', then:'[data-go=actual]', wait:'go:actual'},
       {text:'🎉 计划和实际并排对比，今天做了什么一目了然。', end:true}
     ]},
     say: {title:'② 一句话改日程', steps:[
@@ -635,7 +547,7 @@
       {text:'点底部【收件箱】。', target:'[data-go=inbox]', wait:'go:inbox'},
       {text:'想到就丢进来。点「给导师回邮件」的【找个空档】。', target:'[data-place=i2]', wait:'plan'},
       {text:'点【确认改】。', target:'[data-act=apply]', wait:'applied'},
-      {text:'再试试一句话排一天。回到【今天】，点【排明天】。', target:'[data-go=today]', wait:'go:planDay'},
+      {text:'再试试一句话排一天。回到【今天】，点【排明天】。', target:'[data-go=today]', then:'[data-go=planDay]', wait:'go:planDay'},
       {text:'点下方示例填入一句话，再点【拆一下】。', target:'[data-ex=day]', wait:'split'},
       {text:'时长可以改。点【排进明天】。', target:'[data-act=placeDay]', wait:'plan'},
       {text:'点【确认改】。', target:'[data-act=apply]', wait:'applied'},
@@ -655,7 +567,7 @@
     ]},
     free: {title:'自由体验', steps:[]}
   };
-  function emit(ev){ if(S.mode !== 'demo') return; var st = SC[S.sc].steps[S.step]; if(st && st.wait === ev) S.step++; }
+  function emit(ev){ var st = SC[S.sc].steps[S.step]; if(st && st.wait === ev) S.step++; }
   function examplesHTML(){
     var ex = [];
     if(S.view === 'lock' && S.reply) ex = [['reply', '今晚不听了，改成复习一小时'], ['reply', '英语听力推迟半小时']];
@@ -677,10 +589,8 @@
   // ---------- 渲染 ----------
   function render(){
     if(!S) return;
-    document.body.classList.toggle('real', S.mode === 'real');
-    $('#modebar').innerHTML = [['real', '我的日程'], ['demo', '体验演示']].map(function(m){ return '<button data-mode="' + m[0] + '" class="' + (S.mode === m[0] ? 'on' : '') + '">' + m[1] + '</button>'; }).join('');
-    $('#guide').innerHTML = S.mode === 'demo' ? guideHTML() : '';
-    var views = S.mode === 'demo' ? [['app', 'App'], ['lock', '锁屏通知' + (S.notifs.length ? ' · ' + S.notifs.length : '')], ['home', '桌面小组件']] : [['app', 'App'], ['home', '桌面小组件']];
+    $('#guide').innerHTML = guideHTML();
+    var views = [['app', 'App'], ['lock', '锁屏通知' + (S.notifs.length ? ' · ' + S.notifs.length : '')], ['home', '桌面小组件']];
     $('#viewbar').innerHTML = views.map(function(v){ return '<button data-view="' + v[0] + '" class="' + (S.view === v[0] ? 'on' : '') + '">' + v[1] + '</button>'; }).join('');
     var scr = $('#screen'), body = scr.querySelector('.body'), keep = body ? body.scrollTop : 0;
     var active = document.activeElement, focusId = active && scr.contains(active) && active.id, focusVal = focusId ? active.value : null;
@@ -696,7 +606,7 @@
     if(nb && S.lastScreen === S.view + S.screen + S.sel) nb.scrollTop = keep;
     S.lastScreen = S.view + S.screen + S.sel;
     if(focusId){ var el = document.getElementById(focusId); if(el){ el.focus(); if(focusVal != null && el.value !== focusVal) el.value = focusVal; } }
-    if(S.mode === 'demo'){ var st = SC[S.sc].steps[S.step]; if(st && st.target){ var t = document.querySelector(st.target); if(t) t.classList.add('pulse'); } }
+    var st = SC[S.sc].steps[S.step]; if(st && st.target){ var t = document.querySelector(st.then && S.view === 'app' && S.screen === st.target.slice(9, -1) ? st.then : st.target); if(t) t.classList.add('pulse'); }
   }
   function toast(msg, undo){
     var t = $('#toast');
@@ -706,9 +616,8 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.hidden = true; }, undo ? 7000 : 3000);
   }
   function go(screen){ S.view = 'app'; S.screen = screen; S.msg = ''; if(screen !== 'today' && screen !== 'plan') S.progFor = null; emit('go:' + screen); render(); }
-  function setMode(mode, sc){
-    try{ localStorage.setItem(KEYS.mode, mode); }catch(e){}
-    if(mode === 'real') freshReal(); else freshDemo(sc);
+  function start(sc){
+    freshDemo(sc);
     $('#toast').hidden = true;
     render();
   }
@@ -736,8 +645,7 @@
     else { f.id = uid(); list.push(f); }
     if(e.oldName && e.oldName !== f.name && S.remind[e.oldName]){ S.remind[f.name] = true; delete S.remind[e.oldName]; }
     sortDay(list);
-    if(e.scope === 'day') noteManualEdit();
-    save(); toast('已保存「' + f.name + '」');
+    if(e.scope === 'day') toast('已保存「' + f.name + '」');
     S.edit = null; go(e.back);
   }
 
@@ -749,18 +657,21 @@
       var k = ex.dataset.ex, tx = ex.dataset.text;
       if(k === 'say' || k === 'voice') return understand(tx, k === 'voice' ? '随手记' : '一句话改日程');
       if(k === 'reply') return sendReply(S.reply, tx);
-      if(k === 'day'){ var di = $('#dayText'); if(di) di.value = tx; S.dayText = tx; return; }
+      if(k === 'day'){
+        var di = $('#dayText'); if(di) di.value = tx; S.dayText = tx;
+        ex.classList.remove('pulse'); var sb = document.querySelector('[data-act=split]'); if(sb) sb.classList.add('pulse');
+        return;
+      }
       if(k === 'inbox'){ var ii = $('#inboxText'); if(ii) ii.value = tx; return; }
     }
-    var el = e.target.closest('[data-act],[data-go],[data-view],[data-sc],[data-mode],[data-ff],[data-plus],[data-delay],[data-place],[data-bell],[data-perm],[data-ev],[data-tick],[data-subtick],[data-edit],[data-tpledit],[data-day],[data-sg],[data-cat],[data-kind],[data-subdel],[data-prog],[data-projedit],[data-inboxdel]');
+    var el = e.target.closest('[data-act],[data-go],[data-view],[data-sc],[data-ff],[data-plus],[data-delay],[data-place],[data-bell],[data-perm],[data-ev],[data-tick],[data-subtick],[data-edit],[data-tpledit],[data-day],[data-sg],[data-cat],[data-kind],[data-subdel],[data-prog],[data-projedit],[data-inboxdel]');
     if(!el) return;
     var d = el.dataset;
-    if(d.mode) return d.mode !== S.mode && setMode(d.mode);
-    if(d.sc) return setMode('demo', d.sc);
+    if(d.sc) return start(d.sc);
     if(d.view){ S.view = d.view; emit('view:' + d.view); return render(); }
     if(d.go) return go(d.go);
-    if(d.ff) return S.mode === 'demo' && tick(toMin(d.ff));
-    if(d.plus) return S.mode === 'demo' && tick(S.min + (+d.plus));
+    if(d.ff) return tick(toMin(d.ff));
+    if(d.plus) return tick(S.min + (+d.plus));
     if(d.day != null){ S.sel = d.day === '0' ? S.today : shiftKey(S.sel, +d.day); S.msg = ''; return render(); }
     if(d.delay){
       var res0 = clone(E.plan([{op:'delay', minutes:+d.delay}], Object.assign(data(), {dayKey:S.today, day:dayList(S.today)}), now()));
@@ -769,18 +680,16 @@
       return openPlan('耽误了 ' + d.delay + ' 分钟，后面顺延', '被打断了', res0, 'interrupt');
     }
     if(d.place) return placeInbox(d.place);
-    if(d.inboxdel){ S.inbox = S.inbox.filter(function(x){ return x.id !== d.inboxdel; }); save(); return render(); }
-    if(d.bell){ S.remind[d.bell] = !S.remind[d.bell]; save(); return render(); }
+    if(d.inboxdel){ S.inbox = S.inbox.filter(function(x){ return x.id !== d.inboxdel; }); return render(); }
+    if(d.bell){ S.remind[d.bell] = !S.remind[d.bell]; return render(); }
     if(d.perm){
-      S.perm[d.perm] = !S.perm[d.perm];
-      if(d.perm === 'notify' && S.perm.notify && S.mode === 'real' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission();
-      save(); return render();
+      S.perm[d.perm] = !S.perm[d.perm]; return render();
     }
     if(d.ev){ var pp = d.ev.split('|'); S.evening[pp[0]] = S.evening[pp[0]] === pp[1] ? '' : pp[1]; return render(); }
-    if(d.tick){ var ta = findIn(dayList(S.sel), d.tick); if(ta){ toggle(S.sel, ta); noteManualEdit(); } return render(); }
+    if(d.tick){ var ta = findIn(dayList(S.sel), d.tick); if(ta){ toggle(S.sel, ta); } return render(); }
     if(d.subtick){
       var sp = d.subtick.split('|'), pa = findIn(dayList(S.sel), sp[0]), sb = pa && pa.subs.filter(function(s){ return s.id === sp[1]; })[0];
-      if(sb){ if(pa.done){ pa.done = false; pa.subs.forEach(function(s){ s.done = true; }); } sb.done = !sb.done; if(isComplete(pa)) finish(S.sel, pa); else if(recOf(S.sel, pa) && recOf(S.sel, pa).status === 'done') setRec(S.sel, pa, null); save(); }
+      if(sb){ if(pa.done){ pa.done = false; pa.subs.forEach(function(s){ s.done = true; }); } sb.done = !sb.done; if(isComplete(pa)) finish(S.sel, pa); else if(recOf(S.sel, pa) && recOf(S.sel, pa).status === 'done') setRec(S.sel, pa, null); }
       return render();
     }
     if(d.edit) return openEdit('day', d.edit);
@@ -792,28 +701,27 @@
     if(d.projedit){ var pr = S.projects.filter(function(p){ return p.id === d.projedit; })[0]; S.projEdit = clone(pr); return go('projEdit'); }
     if(d.sg) return onSuggestion(d.sg.split('|'));
     switch(d.act){
-      case 'restart': return setMode('demo', S.sc);
-      case 'start': setRec(S.today, findIn(dayList(S.today), d.id), {status:'running', start:hhmm(now())}); save(); emit('started'); break;
-      case 'finish': finish(S.today, findIn(dayList(S.today), d.id)); save(); emit('finished'); toast('已完成，实际时间已记录'); break;
-      case 'nStart': setRec(S.today, findIn(dayList(S.today), d.id), {status:'running', start:hhmm(now())}); save(); emit('started'); break;
+      case 'restart': return start(S.sc);
+      case 'start': setRec(S.today, findIn(dayList(S.today), d.id), {status:'running', start:hhmm(now())}); emit('started'); break;
+      case 'finish': finish(S.today, findIn(dayList(S.today), d.id)); emit('finished'); toast('已完成，实际时间已记录'); break;
+      case 'nStart': setRec(S.today, findIn(dayList(S.today), d.id), {status:'running', start:hhmm(now())}); emit('started'); break;
       case 'nLater': S.snooze[d.id] = now() + 15; S.notifs = S.notifs.filter(function(n){ return n.id !== d.id; }); S.pushed = Math.max(0, S.pushed - 1); toast('15 分钟后再提醒'); break;
-      case 'nSkip': setRec(S.today, findIn(dayList(S.today), d.id), {status:'skip'}); save(); toast('已记为跳过'); break;
-      case 'prevDone': var pa2 = findIn(dayList(S.today), d.id); var r2 = recOf(S.today, pa2); setRec(S.today, pa2, {status:'done', start:(r2 && r2.start) || pa2.start, end:pa2.end}); save(); break;
+      case 'nSkip': setRec(S.today, findIn(dayList(S.today), d.id), {status:'skip'}); toast('已记为跳过'); break;
+      case 'prevDone': var pa2 = findIn(dayList(S.today), d.id); var r2 = recOf(S.today, pa2); setRec(S.today, pa2, {status:'done', start:(r2 && r2.start) || pa2.start, end:pa2.end}); break;
       case 'openReply': S.reply = d.id; emit('openReply'); break;
       case 'reply': return sendReply(d.id, ($('#replyText') || {}).value || '');
       case 'undoReply':
-        if(S.undo){ S.days = S.undo.days; S.projects = S.undo.projects; S.template = S.undo.template; S.undo = null; save(); }
+        if(S.undo){ S.days = S.undo.days; S.projects = S.undo.projects; S.template = S.undo.template; S.undo = null; }
         S.notifs.forEach(function(n){ if(n.type === 'result') n.undone = true; }); toast('已撤销'); break;
       case 'openEvening': S.notifs = S.notifs.filter(function(n){ return n.type !== 'evening'; }); return go('evening');
       case 'evening':
         Object.keys(S.evening).forEach(function(id){ var x = findIn(dayList(S.today), id); if(!x || !S.evening[id]) return; setRec(S.today, x, S.evening[id] === 'done' ? {status:'done', start:x.start, end:x.end} : {status:'skip'}); });
-        S.evening = {}; celebrate(S.today); save(); emit('evening:done'); toast('核对好了'); return go('today');
+        S.evening = {}; celebrate(S.today); emit('evening:done'); toast('核对好了'); return go('today');
       case 'apply':
-        var pl = S.plan; applyRes(pl.res, pl.id, pl.text);
-        if(pl.extra.sugId) track('suggestion_accepted', {id:pl.extra.sugId, kind:'template'});
+        var pl = S.plan; applyRes(pl.res);
         var back = ['interrupt', 'planDay', 'plan', 'voice'].indexOf(pl.back) >= 0 ? 'today' : pl.back;
         S.plan = null; emit('applied'); return go(back);
-      case 'cancelPlan': track('plan_cancelled', {plan_id:S.plan.id, text:S.plan.text}); var bk = S.plan.back; S.plan = null; return go(bk);
+      case 'cancelPlan': var bk = S.plan.back; S.plan = null; return go(bk);
       case 'listen': return listen();
       case 'replan':
         var rr = clone(E.plan([{op:'replan'}], data(), now()));
@@ -823,24 +731,23 @@
       case 'tplAdd': return openEdit('template');
       case 'overwrite':
         if(!confirm('用基础模板覆盖' + (S.sel === S.today ? '今天' : E.dayLabel(S.sel)) + '的日程？这一天的修改和打勾会清空。')) return;
-        S.days[S.sel] = cloneTpl(); if(S.actual[S.sel]) delete S.actual[S.sel]; save(); toast('已用模板覆盖'); break;
+        S.days[S.sel] = cloneTpl(); if(S.actual[S.sel]) delete S.actual[S.sel]; toast('已用模板覆盖'); break;
       case 'editSave': return saveEdit();
       case 'editDel':
         if(!confirm('删除「' + S.edit.draft.name + '」？')) return;
         var lst = S.edit.scope === 'template' ? S.template : dayList(S.sel);
         var idx = lst.findIndex(function(a){ return a.id === S.edit.id; }); if(idx >= 0) lst.splice(idx, 1);
-        if(S.edit.scope === 'day') noteManualEdit();
-        save(); var eb = S.edit.back; S.edit = null; toast('已删除'); return go(eb);
+        var eb = S.edit.back; S.edit = null; toast('已删除'); return go(eb);
       case 'subAdd': var f = S.edit.draft; f.subs.push({id:uid(), name:'', start:f.start, end:f.end, done:false}); break;
       case 'remindToggle': var nm = S.edit.draft.name; if(nm){ S.remind[nm] = !S.remind[nm]; } else { S.msg = '先填名称再设提醒。'; } break;
       case 'projAdd': S.projEdit = {name:'', category:'', total:'', unit:'集', current:0, dailyTarget:'', deadline:''}; return go('projEdit');
       case 'projSave': return saveProject();
       case 'projDel':
         if(!confirm('删除学习项目「' + S.projEdit.name + '」？')) return;
-        S.projects = S.projects.filter(function(p){ return p.id !== S.projEdit.id; }); S.projEdit = null; save(); return go('projects');
+        S.projects = S.projects.filter(function(p){ return p.id !== S.projEdit.id; }); S.projEdit = null; return go('projects');
       case 'progSave':
         var n = +(($('#progN') || {}).value || 0);
-        if(n > 0){ S.projects.forEach(function(p){ if(p.id === d.id) p.current = Math.round((+p.current + n) * 100) / 100; }); save(); toast('进度 +' + n); }
+        if(n > 0){ S.projects.forEach(function(p){ if(p.id === d.id) p.current = Math.round((+p.current + n) * 100) / 100; }); toast('进度 +' + n); }
         S.progFor = null; break;
       case 'split':
         S.dayText = ($('#dayText') || {}).value || S.dayText; if(!S.dayText.trim()) return; S.msg = '正在拆…'; render();
@@ -859,16 +766,15 @@
         S.msg = '正在整理…'; render();
         return splitTasks(tx2).then(function(r){
           r.tasks.forEach(function(t){ S.inbox.unshift({id:'i' + Date.now() + Math.random().toString(36).slice(2, 5), title:t.name, due:/今天/.test(tx2) ? '今天' : /周[一二三四五六日天]|明天|后天/.test(tx2) ? (tx2.match(/周[一二三四五六日天]|明天|后天/)[0] + '截止') : '不急', minutes:t.minutes, cat:t.cat}); });
-          S.msg = ''; save(); render();
+          S.msg = ''; render();
         });
-      case 'widgetDone': finish(S.today, findIn(dayList(S.today), d.id)); save(); toast('已记录完成'); break;
+      case 'widgetDone': finish(S.today, findIn(dayList(S.today), d.id)); toast('已记录完成'); break;
       case 'export':
         var blob = new Blob([JSON.stringify({app:'sansan-planner', version:2, exportedAt:new Date().toISOString(), template:S.template, days:S.days, projects:S.projects, inbox:S.inbox, remind:S.remind, actual:S.actual}, null, 1)], {type:'application/json'});
         var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '三三作息簿备份-' + S.today + '.json'; a.click(); toast('备份文件已下载'); return;
       case 'resetSample':
-        if(!confirm('恢复示例数据会清除这个浏览器里作息簿的所有数据，确定吗？')) return;
-        Object.keys(KEYS).forEach(function(k){ if(k !== 'mode') try{ localStorage.removeItem(KEYS[k]); }catch(err){} });
-        freshReal(); toast('已恢复示例数据'); return go('today');
+        if(!confirm('恢复示例数据会清空现在的修改，确定吗？')) return;
+        start(S.sc); toast('已恢复示例数据'); return go('today');
       default: return;
     }
     render();
@@ -897,8 +803,7 @@
           var o = JSON.parse(r.result);
           if(!o.template || !o.days) throw 0;
           if(!confirm('用这个备份覆盖现在的数据？')) return;
-          S.template = o.template; S.days = o.days; S.projects = o.projects || []; S.inbox = o.inbox || []; S.remind = o.remind || defaultRemind(o.template); S.actual = o.actual || {};
-          save(); toast('已从备份恢复'); go('today');
+          S.template = o.template; S.days = o.days; S.projects = o.projects || []; S.inbox = o.inbox || []; S.remind = o.remind || defaultRemind(o.template); S.actual = o.actual || {}; toast('已从备份恢复'); go('today');
         }catch(err){ toast('这个文件不是作息簿的备份'); }
       };
       r.readAsText(t.files[0]);
@@ -907,13 +812,11 @@
 
   function onSuggestion(p){
     var kind = p[0], id = p[1];
-    if(kind === 'ignore'){ S.dismissed[id] = Date.now(); track('suggestion_dismissed', {id:id}); save(); return render(); }
+    if(kind === 'ignore'){ S.dismissed[id] = Date.now(); return render(); }
     if(kind === 'daily' || kind === 'deadline'){
       var before = clone(S.projects), pr = S.projects.filter(function(x){ return x.id === p[2]; })[0]; if(!pr) return;
-      if(kind === 'daily') pr.dailyTarget = +p[3]; else pr.deadline = p[3];
-      track('suggestion_accepted', {id:id, kind:'behind', choice:kind === 'daily' ? 'dailyTarget' : 'deadline'});
-      save(); render();
-      return toast(kind === 'daily' ? '「' + pr.name + '」每天目标改成 ' + p[3] : '「' + pr.name + '」截止日改到 ' + E.shortDate(p[3]), function(){ S.projects = before; save(); render(); });
+      if(kind === 'daily') pr.dailyTarget = +p[3]; else pr.deadline = p[3]; render();
+      return toast(kind === 'daily' ? '「' + pr.name + '」每天目标改成 ' + p[3] : '「' + pr.name + '」截止日改到 ' + E.shortDate(p[3]), function(){ S.projects = before; render(); });
     }
     var s = suggestions().concat(E.suggestions(data())).filter(function(x){ return x.id === id; })[0]; if(!s) return;
     var res = clone(E.plan(s.ops, data('template'), now()));
@@ -926,7 +829,7 @@
     if(f.deadline && !daily){ var left = Math.max(0, total - cur - (f.id ? credited(f.id) : 0)); daily = Math.max(0.5, Math.ceil(left / daysLeft(f.deadline) * 2) / 2); }
     var o = {id:f.id || 'p' + uid(), name:f.name.trim(), category:(f.category || '').trim(), total:total, unit:(f.unit || '个').trim(), current:cur, dailyTarget:daily, deadline:f.deadline || ''};
     if(f.id) S.projects = S.projects.map(function(p){ return p.id === f.id ? o : p; }); else S.projects.push(o);
-    S.projEdit = null; save(); toast('已保存「' + o.name + '」'); go('projects');
+    S.projEdit = null; toast('已保存「' + o.name + '」'); go('projects');
   }
   function sendReply(id, text){
     if(!(text || '').trim()) return;
@@ -937,7 +840,7 @@
       Object.keys(res.days).forEach(function(k){ S.days[k] = sortDay(res.days[k]); });
       if(res.template) S.template = res.template;
       if(res.projects) S.projects = res.projects;
-      S.undo = before; save();
+      S.undo = before;
       var result = res.changes.map(function(c){ return (CHG[c.type] || '') + '「' + c.name + '」'; }).join('，') + '。';
       S.notifs = S.notifs.map(function(x){ return x.id === id ? {type:'result', at:x.at, title:a.name + ' ' + a.start + '–' + a.end, said:text, result:result} : x; });
       S.reply = null; emit('replied'); render();
@@ -950,7 +853,7 @@
     if(!today) o.day = /周[一二三四五六日天]/.test(x.due) ? x.due.replace('截止', '') : '明天';
     var res = clone(E.plan([o], Object.assign(data(), {dayKey:S.today, day:dayList(S.today)}), now()));
     if(!res.changes.length){ S.msg = res.warnings.join(' ') || '没找到合适的空档。'; return render(); }
-    S.inbox = S.inbox.filter(function(i){ return i.id !== id; }); save();
+    S.inbox = S.inbox.filter(function(i){ return i.id !== id; });
     S.sel = S.today;
     openPlan(x.title + '（约 ' + x.minutes + ' 分钟' + (x.due ? '，' + x.due : '') + '）', '放进日程', res, 'inbox');
   }
@@ -988,16 +891,7 @@
   function boot(){
     try{ E = frame.contentWindow.__sansanEngine; }catch(err){ E = null; }
     if(!E){ $('#screen').innerHTML = '<div class="body"><p>加载失败，请刷新页面。</p></div>'; return; }
-    var m = 'real'; try{ m = localStorage.getItem(KEYS.mode) || 'real'; }catch(e){}
-    if(/[?&]demo=1/.test(location.search)) m = 'demo';
-    setMode(m);
-    // 「我的日程」每 20 秒对一次真实时间：跨天、到点提醒、刷新「现在」
-    clockTimer = setInterval(function(){
-      if(!S || S.mode !== 'real') return;
-      var t = E.today();
-      if(t !== S.today){ if(S.sel === S.today) S.sel = t; S.today = t; S.pushed = 0; }
-      var m2 = realNow(); if(m2 !== S.min){ S.min = m2; checkReminders(); var typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName); if(!typing && (S.screen === 'today' || S.view !== 'app')) render(); }
-    }, 20000);
+    start('remind');
   }
   if(frame.contentWindow && frame.contentWindow.__sansanEngine) boot(); else frame.addEventListener('load', boot);
 })();

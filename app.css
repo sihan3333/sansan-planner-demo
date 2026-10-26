@@ -147,11 +147,6 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .intro b{display:block;color:var(--ink);font-size:14px;margin-bottom:2px}
 @media(max-width:900px){.intro{grid-template-columns:1fr}}
 /* 模式切换 */
-.modebar{max-width:1120px;margin:14px auto 0;padding:0 16px;display:flex;gap:6px}
-.modebar button{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:7px 16px;font-weight:600;color:var(--ink2)}
-.modebar button.on{background:var(--dark);color:#fff;border-color:var(--dark)}
-body.real .stage{grid-template-columns:1fr;justify-items:center}
-body.real .guide{display:none}
 /* 时间轴：打勾、细分、空闲、时间点、重叠 */
 .tickbox{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);background:#fff;display:grid;place-items:center;color:transparent;flex:none;padding:0}
 .tickbox.on{background:var(--accent);border-color:var(--accent);color:#fff}
