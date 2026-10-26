@@ -6,10 +6,13 @@
 
 > 本仓库是公开演示版。界面和功能与作者自用的最新版一致，但内置的模板、学习项目都是**虚构示例**，与作者本人的生活安排无关。
 
-## App 版设计（规划中）
+## App 版
 
 把作息簿做成手机 App，围绕「记录 → 优化 → 安排」加入 16 项 AI 功能，分 V1.0 / V1.1 / V1.2 三期。
 
+- **App 版 Demo**：<https://sihan3333.github.io/sansan-planner-demo/>（`index.html` + `app.js` + `app.css`）。界面与 Figma 原型一致，手机外框里有 6 个引导情景：到点提醒记下实际、一句话改日程、被打断一键重排、收件箱与排明天、通知里直接回复、晚间核对。锁屏通知和桌面小组件在页面内模拟；V1.1、V1.2 的页面用示例数据展示，标有「规划中」。
+- **复用同一套规则**：App 版在隐藏的 iframe 里加载 `web.html?engine=1`，调用网页版的理解（DeepSeek + 本地规则兜底）、底线检查和排程规则，不另写一套。
+- **网页版**：<https://sihan3333.github.io/sansan-planner-demo/web.html>，功能如下文。
 - [`prd.html`](prd.html)：PRD，含功能清单、状态机、AI 交互逻辑、埋点、数据集要求和验收标准。
 - [`docs/superpowers/specs/2026-10-26-planner-app-design.md`](docs/superpowers/specs/2026-10-26-planner-app-design.md)：设计文档。
 - `figma-app/`：Figma 插件，在 Figma 里运行后生成 21 屏 App 原型；导出的原型图在 `prd-img/`。
@@ -86,7 +89,7 @@ uvicorn app:app --port 8001 --reload
 
 1. 在 Cloudflare 后台新建一个 Worker，把 `worker/worker.js` 的内容粘贴进去并部署。
 2. 在 Worker 的 Settings → Variables 里添加：`DEEPSEEK_API_KEY`（Secret，填你的 DeepSeek Key）和 `ALLOWED_ORIGINS`（例如 `https://sihan3333.github.io,http://localhost:8000`）。
-3. 把 Worker 的地址填到 `index.html` 里的 `var AI_ENDPOINT = '';`，提交并推送。
+3. 把 Worker 的地址填到 `web.html` 里的 `var AI_ENDPOINT = '';`，提交并推送。
 
 ## 隐私说明
 
@@ -95,7 +98,7 @@ uvicorn app:app --port 8001 --reload
 
 ## 运行方式
 
-整个应用就是一个 `index.html`，直接用浏览器打开即可；也可以在项目目录下启动静态服务器：
+网页版就是一个 `web.html`，直接用浏览器打开即可；也可以在项目目录下启动静态服务器：
 
 ```bash
 python -m http.server 8000
