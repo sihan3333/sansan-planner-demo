@@ -1,0 +1,294 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PRD · 三三作息簿 App</title><link rel="stylesheet" href="prd-style.css">
+<style>
+:root{--ink:#1F2A17;--accent:#4E6E24;--bg:#FAF6E8;--line:#E2DCC6}
+.mermaid{background:#FBF9F1;border:1px solid var(--line);border-radius:8px;padding:12px;margin:16px 0;text-align:center}
+h3{margin-top:26px}h4{margin:18px 0 6px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;margin:12px 0 20px}
+.shots figure{margin:0;text-align:center;font-size:13px;color:#6C7660}
+.shots img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
+.state{font-weight:700;color:var(--accent);margin:18px 0 4px}
+td img.thumb{width:110px;border:1px solid var(--line);border-radius:8px;display:block}
+.legend span{display:inline-block;padding:2px 10px;border-radius:10px;margin-right:8px;font-size:13px}
+.v{display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;font-weight:600}
+.v10{background:#E3EED3;color:#3E5A1C}.v11{background:#E3E9F5;color:#38538C}.v12{background:#F6ECD2;color:#8A6A1F}
+</style></head><body class="document"><main>
+<a href="index.html">← 返回网页版 Demo</a> · <a href="docs/superpowers/specs/2026-10-26-planner-app-design.md">设计文档</a> · <a href="eval/REPORT_user.md">真实说法评测报告</a>
+<h1>三三作息簿 App V1.0 产品需求文档</h1>
+<p class="muted">负责人：郑思涵 · 更新：2026-10-26 · 状态：评审中 · 原型图取自 Figma「三三作息簿 App 原型」，共 21 屏</p>
+
+<h2>1. 需求背景</h2>
+<h3>1.1 业务背景与数据现状</h3>
+<table>
+<tr><th>维度</th><th>数据</th><th>来源</th></tr>
+<tr><td>工作与学习时间</td><td>居民平均每天有酬劳动 3 小时 27 分钟；学习培训参与率 25.1%，参与者平均每天 7 小时 9 分钟</td><td><a href="https://www.stats.gov.cn/sj/zxfb/202410/t20241031_1957216.html">国家统计局 · 第三次全国时间利用调查公报（第二号）</a></td></tr>
+<tr><td>真实说法里的需求</td><td>10 位同学写的 100 句改日程说法中，89% 超出单日时间轴的能力，其中跨天 49 句、标记完成 19 句、昨日顺延 8 句</td><td><a href="eval/REPORT_user.md">网页版真实说法评测报告</a></td></tr>
+<tr><td>AI 理解准确率</td><td>补上跨天、标记完成、昨日顺延后，能力范围内 60 句 DeepSeek 全对 52 句；超出能力的 40 句里 37 句不乱改</td><td><a href="eval/REPORT_user.md">同上，第二轮</a></td></tr>
+</table>
+<p>工作和学习并行的人，日程变动频繁。网页版已经能按模板生成每天的时间轴、用一句话改日程，但有三个问题：</p>
+<ol>
+<li><b>手机上不好用。</b>到点不会提醒，不能在通知里打勾，桌面上看不到现在该做什么。</li>
+<li><b>只有计划，没有实际。</b>做没做、什么时候做的都没有记录，「发现了几件事」只能从修改记录里猜。</li>
+<li><b>AI 用得少。</b>AI 只做一件事：把一句话翻译成改日程的指令；记录、优化、安排三个环节里，后两个基本没有 AI。</li>
+</ol>
+
+<h3>1.2 内外部情况</h3>
+<h4>内部现状</h4>
+<ul>
+<li>已上线<a href="index.html">网页版</a>：基础模板、24 小时时间轴、学习项目与打勾推进度、一句话改日程（支持跨天、标记完成、昨日顺延）、发现了几件事。</li>
+<li>已完成指令解析评测：种子用例 60 条、真实说法 100 条；数据后端与看板记录「一次就对」率、采纳率、撤销率。</li>
+<li>已有 Cloudflare Worker 中转 DeepSeek，可复用；同一中转已接通义千问 VL 看图模型。</li>
+</ul>
+<h4>外部竞品</h4>
+<table>
+<tr><th>竞品</th><th>形态</th><th>可借鉴</th><th>不足</th></tr>
+<tr><td><a href="https://www.usemotion.com/">Motion</a></td><td>AI 自动把任务排进日历</td><td>任务按截止日和空档自动排程</td><td>面向职场团队，英文；不跟踪长期学习目标，不记录实际做了什么</td></tr>
+<tr><td><a href="https://structured.app/">Structured</a></td><td>可视化时间轴日程</td><td>一天一条时间轴，开始时通知</td><td>需要逐项手动建；没有模板自动生成和学习进度</td></tr>
+<tr><td><a href="https://dida365.com/">滴答清单</a></td><td>待办 + 日历 + 番茄专注</td><td>收件箱、专注计时、小组件</td><td>以待办为中心，不按作息模板排一天；改日程主要靠手动</td></tr>
+<tr><td><a href="https://www.sunsama.com/">Sunsama</a></td><td>每日规划与复盘</td><td>每天开始的规划、每天结束的复盘</td><td>流程长，需要每天花时间；英文、偏工作场景</td></tr>
+</table>
+<p>差异点：<b>模板生成每天 + 学习项目跟踪 + 一句话改日程 + 记录实际并据此优化</b>，并且坚持「模型理解、规则决定、确认才写入」。</p>
+
+<h2>2. 需求概述</h2>
+<table>
+<tr><th>用什么方式</th><td>把三三作息簿做成手机 App：跨平台主体加 iOS / Android 原生的通知和桌面小组件。围绕「记录 → 优化 → 安排」加入 16 项 AI 功能，分三期上线。大模型负责读懂一句话、语音、截图，并把统计结果解释成人话；时间怎么排、目标怎么算由规则决定；所有改动先预览、确认才写入。</td></tr>
+<tr><th>解决什么问题</th><td>日程在手机上不好用；只有计划没有实际，优化缺少依据；排程和调整仍靠手动。</td></tr>
+<tr><th>达到什么目标</th><td>试用 4 周内：实际记录覆盖率 ≥ 70%；一句话改日程「一次就对」率 ≥ 85%；每人每天推送 ≤ 8 条，关闭通知的用户 &lt; 15%；收件箱任务被排进日程的比例 ≥ 60%；第 4 周仍在使用的比例 ≥ 40%。目标值均为假设，待试用校准。</td></tr>
+</table>
+
+<h2>3. 功能清单</h2>
+<h3>3.1 全局图</h3>
+<p class="legend"><span style="background:#E3EED3">新增</span><span style="background:#F6ECD2">修改</span><span style="background:#EFEBDD">沿用</span>以网页版为基线；本期无删减功能。</p>
+<pre class="mermaid">
+flowchart LR
+  A[三三作息簿 App] --> R[记录]
+  A --> P[安排]
+  A --> O[优化]
+  A --> B[基础]
+  A --> S[服务端]
+  R --> R1[计划 vs 实际]:::new
+  R --> R2[语音随手记]:::new
+  R --> R3[晚间核对]:::new
+  R --> R4[截图导入 V1.2]:::new
+  R --> R5[每晚复盘 V1.2]:::new
+  P --> P1[一句话改日程]:::mod
+  P --> P2[一句话排一天]:::new
+  P --> P3[任务收件箱]:::new
+  P --> P4[被打断一键重排]:::mod
+  P --> P5[目标拆解 V1.2]:::new
+  O --> O1[复盘写成人话 V1.1]:::new
+  O --> O2[精力时段 V1.1]:::new
+  O --> O3[时长校准 V1.1]:::new
+  O --> O4[目标可行性 V1.1]:::new
+  O --> O5[每周报告 V1.1]:::new
+  B --> B1[到点通知与通知里回复]:::new
+  B --> B2[桌面小组件]:::new
+  B --> B3[基础模板与提醒设置]:::mod
+  B --> B4[学习项目]:::keep
+  B --> B5[专注计时 V1.2]:::new
+  S --> S1[大模型中转]:::keep
+  S --> S2[排程规则引擎]:::mod
+  S --> S3[匿名埋点与看板]:::mod
+  classDef new fill:#E3EED3,stroke:#4E6E24
+  classDef mod fill:#F6ECD2,stroke:#8A6A1F
+  classDef keep fill:#EFEBDD,stroke:#9CA48D
+</pre>
+
+<h3>3.2 功能列表</h3>
+<table>
+<tr><th>模块</th><th>功能</th><th>优先级</th><th>变更</th><th>版本</th></tr>
+<tr><td rowspan="5">记录</td><td>计划 vs 实际：通知里的开始、App 和小组件里的打勾记下实际时间；没记录的不猜</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>晚间核对：每天 1 条推送，把没记录的活动列成清单批量勾选</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>语音随手记：一句话改实际记录，后面的计划按规则让位</td><td>P1</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>截图导入：课表、群通知、作业要求读出时间和事项</td><td>P2</td><td>新增</td><td><span class="v v12">V1.2</span></td></tr>
+<tr><td>每晚 1 分钟复盘：最多 3 个问题，整理成当天小结</td><td>P2</td><td>新增</td><td><span class="v v12">V1.2</span></td></tr>
+<tr><td rowspan="5">安排</td><td>一句话改日程：沿用网页版，入口扩展到通知回复和语音</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>一句话排一天：拆成任务、估计时长，规则排进空档</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>任务收件箱：想到就丢进去，按截止日和空档给出放置建议</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>被打断一键重排：选耽误多久，沿用顺延规则</td><td>P1</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>目标拆解：长期目标拆成学习项目草稿，确认后创建</td><td>P2</td><td>新增</td><td><span class="v v12">V1.2</span></td></tr>
+<tr><td rowspan="5">优化</td><td>复盘写成人话：统计结果写成人话，原因标明是推测</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
+<tr><td>精力时段：按准时开始和完成率算高效时段，建议挪动难的学习</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
+<tr><td>时长校准：用实际记录算同类任务平均时长</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
+<tr><td>目标可行性：按实际每天可用时间判断能否按期完成</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
+<tr><td>每周报告：上周小结和下周模板建议，采纳前先预览</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
+<tr><td rowspan="6">基础</td><td>到点通知：一个活动只推 1 条，顺带问上一项；每天上限 8 条</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>通知里直接回复一句话改日程</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>桌面小组件：现在该做、下一项、今日学习进度，可直接打勾</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>基础模板：每项可设提醒，显示每天提醒总数</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>学习项目：进度、每日目标、落后提醒</td><td>P0</td><td>沿用</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>专注计时：结束时写入实际时长并推进学习进度</td><td>P2</td><td>新增</td><td><span class="v v12">V1.2</span></td></tr>
+<tr><td rowspan="4">服务端与数据</td><td>首次使用：本地存储、不需账号；通知、语音、匿名统计分别授权</td><td>P0</td><td>新增</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>大模型中转：DeepSeek 文字、通义千问 VL 看图，密钥不进 App</td><td>P0</td><td>沿用</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>排程规则引擎：顺延、压缩、移出、空档放置、目标计算</td><td>P0</td><td>修改</td><td><span class="v v10">V1.0</span></td></tr>
+<tr><td>云同步与网页版互通，开启时登录</td><td>P1</td><td>新增</td><td><span class="v v11">V1.1</span></td></tr>
+</table>
+
+<h2>4. 需求详情</h2>
+<h3>4.1 交互逻辑</h3>
+<h4>状态机及对应交互图</h4>
+<p>每个活动（某天某段时间的一项安排）是一个状态机。「没记录」不等于「没做」，不计入优化统计。</p>
+<pre class="mermaid">
+stateDiagram-v2
+  [*] --> 计划中
+  计划中 --> 已提醒: 到点推送（标了提醒的活动）
+  计划中 --> 进行中: App 或小组件里点开始
+  已提醒 --> 进行中: 点开始
+  已提醒 --> 计划中: 晚 15 分钟
+  已提醒 --> 已跳过: 点跳过
+  进行中 --> 已完成: 打勾、下一条提醒里确认、专注计时结束
+  计划中 --> 已调整: 一句话改日程、被打断重排、随手记
+  已调整 --> 计划中
+  计划中 --> 待核对: 时间已过仍无记录
+  待核对 --> 已完成: 晚间核对勾做了
+  待核对 --> 已跳过: 晚间核对勾没做
+  待核对 --> 没记录: 当天结束仍未核对
+  已完成 --> [*]
+  已跳过 --> [*]
+  没记录 --> [*]
+</pre>
+<p class="muted">原型图均取自 Figma「三三作息簿 App 原型」。</p>
+<p class="state">计划中 → 已提醒 → 进行中</p>
+<div class="shots"><figure><img src="prd-img/a1.png" alt="A1 今天"><figcaption>A1 今天</figcaption></figure><figure><img src="prd-img/a2.png" alt="A2 到点通知"><figcaption>A2 到点通知</figcaption></figure><figure><img src="prd-img/a11.png" alt="A11 桌面小组件"><figcaption>A11 桌面小组件</figcaption></figure></div>
+<p class="state">已调整：一句话、语音、被打断、通知回复</p>
+<div class="shots"><figure><img src="prd-img/a6.png" alt="A6 一句话改日程"><figcaption>A6 一句话改日程</figcaption></figure><figure><img src="prd-img/a7.png" alt="A7 语音随手记"><figcaption>A7 语音随手记</figcaption></figure><figure><img src="prd-img/a10.png" alt="A10 被打断一键重排"><figcaption>A10 被打断一键重排</figcaption></figure><figure><img src="prd-img/a3.png" alt="A3 通知里直接回复"><figcaption>A3 通知里直接回复</figcaption></figure></div>
+<p class="state">待核对 → 已完成 / 已跳过 / 没记录</p>
+<div class="shots"><figure><img src="prd-img/a5.png" alt="A5 晚间核对"><figcaption>A5 晚间核对</figcaption></figure><figure><img src="prd-img/a4.png" alt="A4 计划 vs 实际"><figcaption>A4 计划 vs 实际</figcaption></figure></div>
+<p class="state">安排：排一天、收件箱</p>
+<div class="shots"><figure><img src="prd-img/a8.png" alt="A8 一句话排一天"><figcaption>A8 一句话排一天</figcaption></figure><figure><img src="prd-img/a9.png" alt="A9 任务收件箱"><figcaption>A9 任务收件箱</figcaption></figure></div>
+<p class="state">基础：模板、学习项目、首次使用</p>
+<div class="shots"><figure><img src="prd-img/a12.png" alt="A12 基础模板"><figcaption>A12 基础模板</figcaption></figure><figure><img src="prd-img/a13.png" alt="A13 学习项目"><figcaption>A13 学习项目</figcaption></figure><figure><img src="prd-img/a14.png" alt="A14 首次使用与数据授权"><figcaption>A14 首次使用</figcaption></figure></div>
+<p class="state">V1.1 优化</p>
+<div class="shots"><figure><img src="prd-img/b1.png" alt="B1 每周报告"><figcaption>B1 每周报告</figcaption></figure><figure><img src="prd-img/b2.png" alt="B2 精力时段"><figcaption>B2 精力时段</figcaption></figure><figure><img src="prd-img/b3.png" alt="B3 时长校准与目标可行性"><figcaption>B3 时长校准与可行性</figcaption></figure></div>
+<p class="state">V1.2 录入与长期目标</p>
+<div class="shots"><figure><img src="prd-img/c1.png" alt="C1 截图导入"><figcaption>C1 截图导入</figcaption></figure><figure><img src="prd-img/c2.png" alt="C2 每晚复盘"><figcaption>C2 每晚复盘</figcaption></figure><figure><img src="prd-img/c3.png" alt="C3 目标拆解"><figcaption>C3 目标拆解</figcaption></figure><figure><img src="prd-img/c4.png" alt="C4 专注计时"><figcaption>C4 专注计时</figcaption></figure></div>
+
+<h4>前后端交互逻辑：提醒、记录与核对</h4>
+<pre class="mermaid">
+sequenceDiagram
+  participant L as 本机调度
+  participant U as 用户
+  participant D as 本地数据
+  participant S as 服务端（可选同步与埋点）
+  L->>U: 到点推送「开始了吗」，顺带问上一项做完没有
+  U->>D: 开始 / 晚 15 分钟 / 跳过（actual_start）
+  U->>D: 打勾或下一条提醒里确认（actual_end）
+  Note over L,U: 未标提醒的活动：App、小组件打勾记录
+  L->>U: 每晚 1 条「今天的核对」
+  U->>D: 批量勾选做了 / 没做 / 改时间
+  D->>D: 当天结束仍无记录的标为没记录
+  D-->>S: 用户同意后上传匿名事件（不含日程原文）
+</pre>
+
+<h4>LLM 交互逻辑：一句话、语音、截图统一入口</h4>
+<pre class="mermaid">
+flowchart TB
+  A1[用户：打字、语音、通知回复、截图] --> B1[前端：语音在本机转文字；截图压缩]
+  B1 --> D1[服务端中转：校验来源与长度，附提示词和必要的日程片段]
+  D1 --> E1[大模型：DeepSeek 理解文字，通义千问 VL 读截图，输出操作指令]
+  E1 --> F0{规则：底线检查}
+  F0 -->|对象不存在、日期说不清、数量缺失| F9[不执行，追问或说明不支持]
+  F0 -->|通过| F1[规则：换算日期，排进空档，顺延、压缩、移出]
+  F1 --> G1[前端：预览新增、调整、压缩、移出]
+  G1 -->|确认| H1[写入，7 秒内可撤销]
+  G1 -->|取消| H2[不改，记为待复盘样本]
+  D1 -.超时或失败.-> R1[本地规则理解常见说法] --> F0
+</pre>
+<table>
+<tr><th>传统流程</th><th>AI 工作流</th><th>AI 在该节点要做的事</th></tr>
+<tr><td>用户手动拖动、逐项修改</td><td>一句话、语音或通知回复</td><td>—</td></tr>
+<tr><td>用户自己想怎么改</td><td>大模型翻译成操作指令</td><td>判断改今天、改模板还是改学习项目；只输出指令，不决定具体几点</td></tr>
+<tr><td>改完才发现冲突</td><td>规则排程并预览</td><td>已开始、已完成和睡觉时间不动；空档先吸收，放不下先压缩运动和护理，再压缩学习，最后移出重要性低的</td></tr>
+<tr><td>只看计划</td><td>记录实际并解读</td><td>统计由规则算；大模型把结果写成人话，原因标明是推测</td></tr>
+</table>
+
+<h4>接口字段</h4>
+<table>
+<tr><th>接口</th><th>请求字段</th><th>返回字段</th></tr>
+<tr><td>理解一句话</td><td>text 原话；scope 当前页面；context 今天、模板、学习项目摘要；now 当前时间</td><td>ops 指令数组（type、target、date、time、amount、where）</td></tr>
+<tr><td>读截图</td><td>image 截图（JPEG，≤ 2MB）；now</td><td>items 事项数组（title、date_text、time_text、place）；readable</td></tr>
+<tr><td>写成人话</td><td>stats 统计结果（完成率、偏差、覆盖率）</td><td>summary 小结；reasons 推测的原因；suggestions 建议</td></tr>
+<tr><td>记录实际</td><td>activity_id，action（start / done / skip / snooze / edit），at，source（通知 / App / 小组件 / 核对 / 专注）</td><td>status，actual_start，actual_end</td></tr>
+<tr><td>收件箱放置</td><td>task（title、due、duration）；free_slots</td><td>suggestion（date、start、end、reason）</td></tr>
+</table>
+
+<h3>4.2 功能详述</h3>
+<h4>传统功能</h4>
+<table>
+<tr><th>页面板块</th><th>交互样式</th><th>功能详述</th></tr>
+<tr><td>今天</td><td><img class="thumb" src="prd-img/a1.png" alt=""></td><td>顶部日期和记录覆盖数；「现在」卡片显示当前活动，可完成或被打断；一句话输入栏带语音；时间轴每项按分类着色，已完成的显示实际时间，有偏差时标出。</td></tr>
+<tr><td>到点通知</td><td><img class="thumb" src="prd-img/a2.png" alt=""></td><td>只推标了提醒的活动；按钮为开始、晚 15 分钟、跳过；顺带问上一项做完没有；睡眠时段不推，每天上限 8 条；连续 3 次不响应同一类，询问是否关掉。</td></tr>
+<tr><td>桌面小组件</td><td><img class="thumb" src="prd-img/a11.png" alt=""></td><td>中号显示现在该做和下一项，可直接打勾写入实际记录；小号显示今日学习进度。</td></tr>
+<tr><td>晚间核对</td><td><img class="thumb" src="prd-img/a5.png" alt=""></td><td>每晚 1 条推送；没记录的活动逐项选做了、没做、改时间，一起确认；不核对也不追问。</td></tr>
+<tr><td>计划 vs 实际</td><td><img class="thumb" src="prd-img/a4.png" alt=""></td><td>有记录数、按计划完成率、总偏差；逐项对比计划和实际，没记录的单独标出。</td></tr>
+<tr><td>被打断一键重排</td><td><img class="thumb" src="prd-img/a10.png" alt=""></td><td>选 15、30、45 分钟或 1 小时；按顺延规则预览后面的调整，确认才写入。</td></tr>
+<tr><td>基础模板</td><td><img class="thumb" src="prd-img/a12.png" alt=""></td><td>新的一天按模板生成；每项用铃铛设提醒，顶部显示每天提醒总数和上限。</td></tr>
+<tr><td>学习项目</td><td><img class="thumb" src="prd-img/a13.png" alt=""></td><td>进度条、每日目标、截止日；落后时给出提高每天目标或推迟截止两个选项。</td></tr>
+<tr><td>首次使用</td><td><img class="thumb" src="prd-img/a14.png" alt=""></td><td>说明日程只存在手机里；通知、语音识别、匿名统计分别授权，都可以不开。</td></tr>
+</table>
+<h4>AI 相关功能</h4>
+<table>
+<tr><th>功能点</th><th>运行逻辑</th><th>关键技术 / 运用模型能力</th></tr>
+<tr><td>一句话改日程 <span class="v v10">V1.0</span></td><td>文字、语音或通知回复触发；模型输出指令，规则底线检查后排程，预览确认写入</td><td>DeepSeek 结构化指令，温度 0，JSON 输出；规则引擎；本地规则兜底</td></tr>
+<tr><td>语音随手记 <span class="v v10">V1.0</span></td><td>本机转文字后按一句话处理，修改对象是实际记录；后面的计划按顺延规则让位</td><td>系统语音识别；同上</td></tr>
+<tr><td>一句话排一天 <span class="v v10">V1.0</span></td><td>模型拆出任务和估计时长，标「AI 估计」可改；规则放进目标日的空档</td><td>DeepSeek 任务拆分；规则空档放置</td></tr>
+<tr><td>任务收件箱 <span class="v v10">V1.0</span></td><td>模型估计时长和类别；规则按截止日、空档给建议，一键放进去</td><td>DeepSeek 分类与时长估计；规则排程</td></tr>
+<tr><td>复盘写成人话 <span class="v v11">V1.1</span></td><td>规则统计完成率和偏差；模型写小结，原因必须标明是推测</td><td>DeepSeek 文本生成；只输入统计数字，不输入日程原文以外的信息</td></tr>
+<tr><td>精力时段 <span class="v v11">V1.1</span></td><td>按近 14 天准时开始和完成率算各时段得分；模型只负责解释</td><td>规则统计</td></tr>
+<tr><td>时长校准 <span class="v v11">V1.1</span></td><td>模型判断新任务属于哪一类；规则用该类实际时长算平均</td><td>DeepSeek 分类；规则统计</td></tr>
+<tr><td>目标可行性 <span class="v v11">V1.1</span></td><td>新建学习项目时，按最近实际每天可用时间算预计完成日</td><td>规则计算，不用模型</td></tr>
+<tr><td>每周报告 <span class="v v11">V1.1</span></td><td>每周一生成；建议采纳前预览模板改动；写明数据覆盖率</td><td>规则统计 + DeepSeek 写作</td></tr>
+<tr><td>截图导入 <span class="v v12">V1.2</span></td><td>看图模型读出事项和时间说法；规则换算日期并排进去，先预览</td><td>通义千问 VL；截图不保存</td></tr>
+<tr><td>每晚复盘 <span class="v v12">V1.2</span></td><td>设定时间问最多 3 个问题；模型整理成当天小结，进入每周报告</td><td>DeepSeek 对话与总结</td></tr>
+<tr><td>目标拆解 <span class="v v12">V1.2</span></td><td>模型拆出学习项目草稿；每天目标由规则按截止日算；确认后创建</td><td>DeepSeek 任务拆解；规则计算</td></tr>
+</table>
+
+<h2>5. 数据埋点</h2>
+<p class="muted">只在用户同意后上传匿名事件；事件不含日程原文，指令原话另需单独同意才上传。</p>
+<table>
+<tr><th>事件</th><th>触发时机</th><th>关键属性</th><th>用于验证</th></tr>
+<tr><td>notify_send / notify_action</td><td>推送发出 / 用户点了通知按钮</td><td>activity_id，action（开始 / 晚点 / 跳过 / 回复），距推送秒数</td><td>推送是否有用、是否打扰</td></tr>
+<tr><td>actual_record</td><td>记下实际</td><td>source（通知 / App / 小组件 / 核对 / 专注），偏差分钟数</td><td>实际记录覆盖率</td></tr>
+<tr><td>evening_check</td><td>完成晚间核对</td><td>待核对数，已核对数，耗时</td><td>核对是否被接受</td></tr>
+<tr><td>ai_request</td><td>一句话、语音、截图请求</td><td>入口，理解方式（大模型 / 本地规则），耗时，指令数</td><td>AI 可用性与延迟</td></tr>
+<tr><td>plan_preview / plan_apply / plan_undo</td><td>预览、确认、撤销</td><td>指令类型，改动项数，确认后 5 分钟内是否手动再改</td><td>「一次就对」率</td></tr>
+<tr><td>inbox_add / inbox_place</td><td>加任务 / 放进日程</td><td>是否采纳建议，放置距截止天数</td><td>收件箱放置率</td></tr>
+<tr><td>insight_view / insight_adopt</td><td>看到优化建议 / 采纳</td><td>建议类型，是否采纳</td><td>优化建议采纳率</td></tr>
+<tr><td>notify_mute</td><td>关掉某类提醒或全部通知</td><td>类别，当天已推条数</td><td>打扰护栏</td></tr>
+</table>
+
+<h2>6. 数据集要求</h2>
+<table>
+<tr><th>数据类型</th><th>描述</th><th>数据规模要求</th></tr>
+<tr><td>指令解析评测集</td><td>一句话改日程能否解析完全正确；超出能力时能否不乱改（<a href="eval/REPORT_user.md">现有报告</a>）</td><td>现有种子 60 条、真实说法 100 条；上线前补到真实说法 ≥ 500 条，覆盖通知回复和语音转写两种来源，逐条标注标准指令和是否超出能力</td></tr>
+<tr><td>排一天与收件箱评测集</td><td>任务拆分是否完整、时长估计是否合理、放置是否满足截止日和冲突规则</td><td>≥ 200 条多任务说法，标注任务列表和可接受的时长范围</td></tr>
+<tr><td>截图导入评测集</td><td>课表、群通知、作业要求截图能否读对事项、日期和时间</td><td>≥ 300 张，覆盖 3 类来源和模糊、长截图；不读错日期是第一指标</td></tr>
+<tr><td>复盘解读评测集</td><td>人话小结是否忠于统计数字、原因是否标明推测</td><td>≥ 100 份周统计，人工按事实一致性打分</td></tr>
+<tr><td>坏例回归集</td><td>被取消、被撤销、采纳后又手动改、没听懂的原话</td><td>每周复盘并入；改提示词或规则须全量回归</td></tr>
+</table>
+
+<h2>7. 验收标准</h2>
+<h4>常规功能</h4>
+<table>
+<tr><th>功能点</th><th>预期</th></tr>
+<tr><td>到点通知</td><td>到点误差 ≤ 1 分钟；未标提醒的活动不推；睡眠时段不推；单日超过上限时不再推并在 App 内提示</td></tr>
+<tr><td>通知按钮</td><td>开始、晚 15 分钟、跳过在不打开 App 时写入记录；下一条提醒里能确认上一项</td></tr>
+<tr><td>桌面小组件</td><td>现在该做和下一项与时间轴一致，切换时 1 分钟内刷新；打勾后 App 内同步</td></tr>
+<tr><td>晚间核对</td><td>每天只推 1 条；批量确认后实际记录更新；当天结束仍无记录的标为没记录</td></tr>
+<tr><td>被打断重排</td><td>已完成、已开始和睡眠时段不动；预览与写入结果一致；7 秒内可撤销</td></tr>
+<tr><td>首次使用</td><td>不登录可用；三项授权都关闭时仍能正常记录和排程</td></tr>
+</table>
+<h4>AI 相关功能</h4>
+<table>
+<tr><th>功能点</th><th>测试方式</th><th>指标</th></tr>
+<tr><td>一句话改日程</td><td>在指令解析评测集上跑完整流程（大模型 + 底线检查），逐条与标准指令比对</td><td>能力范围内全对率 ≥ 90%；超出能力时不乱改 ≥ 95%。网页版现状：全对 52/60，不乱改 37/40</td></tr>
+<tr><td>一句话排一天 / 收件箱</td><td>在排一天评测集上比对任务列表和放置结果</td><td>任务无遗漏 ≥ 95%；放置违反截止日或覆盖已有安排为 0</td></tr>
+<tr><td>截图导入</td><td>在截图评测集上比对事项、日期、时间</td><td>日期读错为 0（拿不准时必须追问）；事项全对率 ≥ 85%</td></tr>
+<tr><td>复盘写成人话</td><td>人工检查复盘解读评测集</td><td>与统计数字矛盾为 0；原因未标推测为 0</td></tr>
+<tr><td>大模型降级</td><td>模拟超时、返回错误、输出格式错误</td><td>100% 回退本地规则或提示稍后再试；不出现未经预览的写入</td></tr>
+</table>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'strict' });
+</script>
+</main></body></html>

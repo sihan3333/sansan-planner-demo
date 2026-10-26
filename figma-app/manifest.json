@@ -1,0 +1,9 @@
+{
+  "name": "三三作息簿App原型",
+  "id": "sansan-planner-app-prototype-local",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}
