@@ -31,10 +31,47 @@
 
   var E = null, S = null, toastTimer;
 
+  // ---------- 匿名使用数据：发到线上数据后端（backend/worker），不记录身份信息；「我的 → 提醒与隐私」可以关掉 ----------
+  var EVENTS_ENDPOINT = 'https://sansan-data.sihanzheng68.workers.dev/api/events';
+  var STATS_OFF = 'zuoxibu_stats_off';
+  var ANON_ID = (function(){
+    var t = (location.search.match(/[?&]tester=([\w-]{1,20})/) || [])[1];
+    if(t) return 'tester-' + t;
+    try{
+      var v = localStorage.getItem('zuoxibu_anon_id');
+      if(!v){ v = 'u-' + Math.random().toString(36).slice(2, 10); localStorage.setItem('zuoxibu_anon_id', v); }
+      return v;
+    }catch(e){ return 'u-anon'; }
+  })();
+  var statsOn = function(){ try{ return localStorage.getItem(STATS_OFF) !== '1'; }catch(e){ return true; } };
+  var eventQueue = [], eventTimer = null, snapTimer = null;
+  function track(type, payload){
+    if(!S || !S.perm.stats) return;
+    eventQueue.push({type:type, ts:new Date().toISOString(), data:payload || {}});
+    clearTimeout(eventTimer); eventTimer = setTimeout(flushEvents, 800);
+  }
+  function flushEvents(){
+    if(!eventQueue.length) return;
+    var batch = eventQueue.splice(0, 50);
+    try{ fetch(EVENTS_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify({anon_id:ANON_ID, events:batch}), keepalive:true}).catch(function(){}); }catch(e){}
+  }
+  window.addEventListener('pagehide', flushEvents);
+  function snapshot(key){
+    clearTimeout(snapTimer);
+    snapTimer = setTimeout(function(){
+      var list = S.days[key]; if(!list || key > S.today) return;
+      var nowM = key === S.today ? now() : 1440;
+      track('day_snapshot', {date:key, items:list.map(function(a){ return {name:a.name, cat:a.cat, start:a.start, end:a.end, done:isComplete(a), due:toMin(a.end) <= nowM}; })});
+    }, 1500);
+  }
+  function noteManualEdit(){
+    if(S.lastApplied && Date.now() - S.lastApplied.at < 5 * 60000){ track('edit_after_ai', {plan_id:S.lastApplied.id}); S.lastApplied = null; }
+  }
+
   var tplFrom = function(rows){ return rows.map(function(r){ return {id:uid(), name:r[0], start:r[1], end:r[2], cat:r[3], kind:'range', group:'', projectId:r[4] || '', amount:r[5] || 0, done:false, subs:[]}; }); };
   var defaultRemind = function(tpl){ var o = {}; tpl.forEach(function(a){ if(a.cat === 'learn' || a.cat === 'work') o[a.name] = true; }); return o; };
   function baseState(){
-    return {min:0, today:E.today(), sel:E.today(), template:[], days:{}, projects:[], inbox:[], remind:{}, actual:{}, perm:{notify:true, voice:true, stats:false},
+    return {min:0, today:E.today(), sel:E.today(), template:[], days:{}, projects:[], inbox:[], remind:{}, actual:{}, perm:{notify:true, voice:true, stats:statsOn()},
             dismissed:{}, notifs:[], pushed:0, snooze:{}, view:'app', screen:'today', plan:null, undo:null, flash:{}, reply:null, evening:{}, busy:false, msg:'',
             edit:null, projEdit:null, progFor:null, split:null, dayText:'', voiceText:'', voiceMsg:'', listening:false, sc:'remind', step:0};
   }
@@ -91,6 +128,8 @@
   function toggle(key, a){
     if(isComplete(a)){ a.subs.forEach(function(s){ s.done = false; }); setRec(key, a, null); }
     else finish(key, a);
+    track('activity_toggled', {date:key, name:a.name, cat:a.cat, start:a.start, end:a.end, done:isComplete(a), at:hhmm(now())});
+    snapshot(key);
   }
   function credited(pid){
     var sum = 0;
@@ -153,11 +192,13 @@
     text = (text || '').trim();
     if(!text || S.busy) return;
     S.busy = true; S.msg = '正在理解你的意思…'; render();
-    var view = S.screen === 'template' ? 'template' : 'day';
+    var t0 = Date.now(), view = S.screen === 'template' ? 'template' : 'day';
     E.understand(text, data(view), now()).then(function(res){
       S.busy = false; S.msg = '';
       res = clone(res);
+      track('ai_request', {text:text, source:res.source, view:view, n_ops:res.changes.length, reply:res.reply || '', latency_ms:Date.now() - t0});
       if(!res.changes.length){
+        track('ai_no_ops', {text:text, source:res.source, reply:res.reply || ''});
         S.msg = res.warnings.join(' ') || res.reply || '没找到要改的内容，换个说法试试。'; render(); return;
       }
       if(then) return then(res);
@@ -167,9 +208,10 @@
   function openPlan(text, title, res, back, extra){
     S.plan = {id:uid(), text:text, title:title, res:res, back:back || (S.screen === 'plan' ? 'today' : S.screen), extra:extra || {}};
     S.view = 'app'; S.screen = 'plan';
+    track('plan_shown', {plan_id:S.plan.id, text:text, source:res.source, n_changes:res.changes.length});
     emit('plan'); render();
   }
-  function applyRes(res){
+  function applyRes(res, planId, text){
     var before = {days:clone(S.days), template:clone(S.template), projects:clone(S.projects)};
     var flash = {};
     res.changes.forEach(function(c){ if(c.id) flash[c.id] = true; });
@@ -182,10 +224,12 @@
     if(res.template) S.template = sortDay(res.template);
     if(res.projects) S.projects = res.projects;
     S.flash = flash;
+    S.lastApplied = {id:planId, at:Date.now()};
+    track('plan_applied', {plan_id:planId, text:text, source:res.source, n_changes:res.changes.length});
     setTimeout(function(){ S.flash = {}; render(); }, 2500);
     toast('已更新 ' + res.changes.length + ' 项', function(){
       S.days = before.days; S.template = before.template; S.projects = before.projects;
-      render();
+      track('plan_undone', {plan_id:planId, text:text}); render();
     });
   }
   var CHG = {add:'新增', move:'调整', shrink:'压缩', remove:'删除', drop:'移出', done:'完成', undone:'取消完成', 'proj-add':'新项目', 'proj-progress':'记进度', 'proj-update':'改项目', 'proj-remove':'删项目'};
@@ -448,7 +492,7 @@
   SCREENS.welcome = function(){
     var t = function(k, title, sub){ return '<div class="card row"><div class="grow"><b>' + title + '</b><div class="sm">' + sub + '</div></div><button class="toggle ' + (S.perm[k] ? 'on' : '') + '" data-perm="' + k + '"><i></i></button></div>'; };
     return sbar() + nav('提醒与隐私', 'me') + '<div class="body"><div class="sm" style="font-size:14px">日程默认只存在你的手机里，不需要账号。</div>' +
-      t('notify', '通知', '只提醒你标了铃铛的活动，每天最多 8 条，睡觉时不打扰') + t('voice', '语音识别', '在手机上转成文字，只把文字发给 AI') + t('stats', '匿名使用统计', '帮我们改进 AI；不含日程原文，可以随时关掉') + '</div>';
+      t('notify', '通知', '只提醒你标了铃铛的活动，每天最多 8 条，睡觉时不打扰') + t('voice', '语音识别', '在手机上转成文字，只把文字发给 AI') + t('stats', '匿名使用统计', '记录操作和你对 AI 说的话，用来改进 AI；不含身份信息，可以随时关掉') + '</div>';
   };
   SCREENS.data = function(){
     return sbar() + nav('数据', 'me') + '<div class="body"><div class="card"><b>备份</b><div class="sm">把模板、每天的日程、学习项目和收件箱存成一个文件。</div><button class="btn primary" data-act="export">导出备份文件</button></div>' +
@@ -645,7 +689,7 @@
     else { f.id = uid(); list.push(f); }
     if(e.oldName && e.oldName !== f.name && S.remind[e.oldName]){ S.remind[f.name] = true; delete S.remind[e.oldName]; }
     sortDay(list);
-    if(e.scope === 'day') toast('已保存「' + f.name + '」');
+    if(e.scope === 'day'){ noteManualEdit(); snapshot(S.sel); toast('已保存「' + f.name + '」'); }
     S.edit = null; go(e.back);
   }
 
@@ -683,10 +727,12 @@
     if(d.inboxdel){ S.inbox = S.inbox.filter(function(x){ return x.id !== d.inboxdel; }); return render(); }
     if(d.bell){ S.remind[d.bell] = !S.remind[d.bell]; return render(); }
     if(d.perm){
-      S.perm[d.perm] = !S.perm[d.perm]; return render();
+      S.perm[d.perm] = !S.perm[d.perm];
+      if(d.perm === 'stats') try{ localStorage.setItem(STATS_OFF, S.perm.stats ? '0' : '1'); }catch(err){}
+      return render();
     }
     if(d.ev){ var pp = d.ev.split('|'); S.evening[pp[0]] = S.evening[pp[0]] === pp[1] ? '' : pp[1]; return render(); }
-    if(d.tick){ var ta = findIn(dayList(S.sel), d.tick); if(ta){ toggle(S.sel, ta); } return render(); }
+    if(d.tick){ var ta = findIn(dayList(S.sel), d.tick); if(ta){ toggle(S.sel, ta); noteManualEdit(); } return render(); }
     if(d.subtick){
       var sp = d.subtick.split('|'), pa = findIn(dayList(S.sel), sp[0]), sb = pa && pa.subs.filter(function(s){ return s.id === sp[1]; })[0];
       if(sb){ if(pa.done){ pa.done = false; pa.subs.forEach(function(s){ s.done = true; }); } sb.done = !sb.done; if(isComplete(pa)) finish(S.sel, pa); else if(recOf(S.sel, pa) && recOf(S.sel, pa).status === 'done') setRec(S.sel, pa, null); }
@@ -718,10 +764,11 @@
         Object.keys(S.evening).forEach(function(id){ var x = findIn(dayList(S.today), id); if(!x || !S.evening[id]) return; setRec(S.today, x, S.evening[id] === 'done' ? {status:'done', start:x.start, end:x.end} : {status:'skip'}); });
         S.evening = {}; celebrate(S.today); emit('evening:done'); toast('核对好了'); return go('today');
       case 'apply':
-        var pl = S.plan; applyRes(pl.res);
+        var pl = S.plan; applyRes(pl.res, pl.id, pl.text);
+        if(pl.extra.sugId) track('suggestion_accepted', {id:pl.extra.sugId, kind:'template'});
         var back = ['interrupt', 'planDay', 'plan', 'voice'].indexOf(pl.back) >= 0 ? 'today' : pl.back;
         S.plan = null; emit('applied'); return go(back);
-      case 'cancelPlan': var bk = S.plan.back; S.plan = null; return go(bk);
+      case 'cancelPlan': track('plan_cancelled', {plan_id:S.plan.id, text:S.plan.text}); var bk = S.plan.back; S.plan = null; return go(bk);
       case 'listen': return listen();
       case 'replan':
         var rr = clone(E.plan([{op:'replan'}], data(), now()));
@@ -812,10 +859,11 @@
 
   function onSuggestion(p){
     var kind = p[0], id = p[1];
-    if(kind === 'ignore'){ S.dismissed[id] = Date.now(); return render(); }
+    if(kind === 'ignore'){ S.dismissed[id] = Date.now(); track('suggestion_dismissed', {id:id}); return render(); }
     if(kind === 'daily' || kind === 'deadline'){
       var before = clone(S.projects), pr = S.projects.filter(function(x){ return x.id === p[2]; })[0]; if(!pr) return;
-      if(kind === 'daily') pr.dailyTarget = +p[3]; else pr.deadline = p[3]; render();
+      if(kind === 'daily') pr.dailyTarget = +p[3]; else pr.deadline = p[3];
+      track('suggestion_accepted', {id:id, kind:'behind', choice:kind === 'daily' ? 'dailyTarget' : 'deadline'}); render();
       return toast(kind === 'daily' ? '「' + pr.name + '」每天目标改成 ' + p[3] : '「' + pr.name + '」截止日改到 ' + E.shortDate(p[3]), function(){ S.projects = before; render(); });
     }
     var s = suggestions().concat(E.suggestions(data())).filter(function(x){ return x.id === id; })[0]; if(!s) return;

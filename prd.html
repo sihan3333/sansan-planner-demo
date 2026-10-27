@@ -21,8 +21,8 @@ td img.thumb{width:110px;border:1px solid var(--line);border-radius:8px;display:
 <table>
 <tr><th>维度</th><th>数据</th><th>来源</th></tr>
 <tr><td>工作与学习时间</td><td>居民平均每天有酬劳动 3 小时 27 分钟；学习培训参与率 25.1%，参与者平均每天 7 小时 9 分钟</td><td><a href="https://www.stats.gov.cn/sj/zxfb/202410/t20241031_1957216.html">国家统计局 · 第三次全国时间利用调查公报（第二号）</a></td></tr>
-<tr><td>真实说法里的需求</td><td>10 位同学写的 100 句改日程说法中，89% 超出单日时间轴的能力，其中跨天 49 句、标记完成 19 句、昨日顺延 8 句</td><td><a href="eval/REPORT_user.md">网页版真实说法评测报告</a></td></tr>
-<tr><td>AI 理解准确率</td><td>补上跨天、标记完成、昨日顺延后，能力范围内 60 句 DeepSeek 全对 52 句；超出能力的 40 句里 37 句不乱改</td><td><a href="eval/REPORT_user.md">同上，第二轮</a></td></tr>
+<tr><td>真实说法里的需求</td><td>10 位同学写的 100 句改日程说法中，跨天 49 句、标记完成 19 句、昨日顺延 8 句</td><td><a href="eval/REPORT_user.md">真实说法评测报告</a></td></tr>
+<tr><td>AI 理解准确率</td><td>能力范围内 60 句 DeepSeek 全对 52 句；超出能力的 40 句里 37 句不乱改</td><td><a href="eval/REPORT_user.md">真实说法评测报告</a></td></tr>
 </table>
 <p>工作和学习并行的人，日程变动频繁，现有做法有三个问题：</p>
 <ol>
@@ -34,8 +34,8 @@ td img.thumb{width:110px;border:1px solid var(--line);border-radius:8px;display:
 <h3>1.2 内外部情况</h3>
 <h4>内部现状</h4>
 <ul>
-<li>已上线 <a href="index.html">App</a>：基础模板、日程时间轴、学习项目与打勾推进度、一句话改日程（支持跨天、标记完成、昨日顺延）、发现了几件事、计划 vs 实际、任务收件箱；公开演示用虚构示例数据和模拟时间，带引导情景。</li>
-<li>已完成指令解析评测：种子用例 60 条、真实说法 100 条；数据后端与看板记录「一次就对」率、采纳率、撤销率。</li>
+<li>已完成可交互 <a href="index.html">Demo</a>：基础模板、日程时间轴、学习项目与打勾推进度、一句话改日程（支持跨天、标记完成、昨日顺延）、发现了几件事、计划 vs 实际、任务收件箱；用虚构示例数据和模拟时间，带引导情景。</li>
+<li>已完成指令解析评测：种子用例 60 条、真实说法 100 条；数据后端已部署在 Cloudflare，演示的匿名使用事件实时写入 <a href="https://sansan-data.sihanzheng68.workers.dev/dashboard">数据看板</a>，记录「一次就对」率、采纳率、撤销率。</li>
 <li>已有 Cloudflare Worker 中转 DeepSeek，可复用；同一中转已接通义千问 VL 看图模型。</li>
 </ul>
 <h4>外部竞品</h4>

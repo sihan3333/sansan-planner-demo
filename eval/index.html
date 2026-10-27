@@ -282,8 +282,8 @@ iframe{position:absolute;width:1px;height:1px;left:-9999px;border:0;}
   });
 
   var NOTICE = {
-    'cases.json': '种子用例是开发者自己写的，本地规则也是同一个人写的，所以本地规则在这里的分数<b>偏高</b>。对外引用请用「真实用户说法」。',
-    'cases_user.json': '10 位同学在没看任何例句的情况下写的说法。产品目前只能改正在查看的这一天、基础模板和学习项目；跨天操作、标记完成、昨天顺延等超出能力的说法，标准答案是<b>不做任何修改</b>，分开统计。'
+    'cases.json': '60 条种子用例，覆盖 14 类指令，用于回归测试。',
+    'cases_user.json': '10 位同学在没看任何例句的情况下写的说法。对象不明确、「进行中」状态、不是具体数字的进度，标准答案是<b>不做任何修改</b>，和能力范围内的句子分开统计。'
   };
   // each case file carries its own fixed day, template and projects
   function loadSuite(file){
